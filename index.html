@@ -2,22 +2,26 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Radialventilator-Auslegung fuer die Zementindustrie</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#134269" />
+  <title>Radialventilator-Auslegung Zementindustrie</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
       <h1>Radialventilator-Auslegung</h1>
-      <p class="subtitle">Aerodynamische und mechanische Auslegung fuer Prozessventilatoren der Zementindustrie</p>
+      <p class="subtitle">Prozessventilatoren der Zementindustrie</p>
     </div>
   </header>
 
   <main class="layout">
     <!-- ============== INPUTS ============== -->
-    <section class="card panel-inputs">
+    <section class="card panel-inputs" id="panel-inputs">
       <h2>1. Anwendung</h2>
+      <button type="button" class="inputs-toggle" id="inputs-toggle" aria-expanded="true">
+        Eingaben einklappen
+      </button>
       <label class="field">
         <span>Anwendung / Preset</span>
         <select id="preset"></select>
@@ -28,32 +32,32 @@
       <div class="grid2">
         <label class="field">
           <span>Volumenstrom Q</span>
-          <input type="number" id="Q" step="100" min="100" />
+          <input type="number" id="Q" step="100" min="100" inputmode="numeric" autocomplete="off" />
           <em class="unit">m&sup3;/h</em>
         </label>
         <label class="field">
-          <span>Gesamtdruckerhoehung &Delta;p<sub>t</sub></span>
-          <input type="number" id="dp" step="50" min="50" />
+          <span>Druckerhoehung &Delta;p<sub>t</sub></span>
+          <input type="number" id="dp" step="50" min="50" inputmode="numeric" autocomplete="off" />
           <em class="unit">Pa</em>
         </label>
         <label class="field">
           <span>Gastemperatur T</span>
-          <input type="number" id="T" step="1" />
+          <input type="number" id="T" step="1" inputmode="numeric" autocomplete="off" />
           <em class="unit">&deg;C</em>
         </label>
         <label class="field">
           <span>Umgebungsdruck p</span>
-          <input type="number" id="p" step="100" />
+          <input type="number" id="p" step="100" inputmode="numeric" autocomplete="off" />
           <em class="unit">Pa</em>
         </label>
         <label class="field">
           <span>Staubbeladung</span>
-          <input type="number" id="dust" step="1" min="0" />
+          <input type="number" id="dust" step="1" min="0" inputmode="decimal" autocomplete="off" />
           <em class="unit">g/m&sup3;</em>
         </label>
         <label class="field">
           <span>Drehzahl n</span>
-          <input type="number" id="n" step="5" min="100" />
+          <input type="number" id="n" step="5" min="100" inputmode="numeric" autocomplete="off" />
           <em class="unit">1/min</em>
         </label>
       </div>
@@ -113,24 +117,24 @@
       </div>
 
       <div class="card">
-        <h2>Hinweise zur Anwendung</h2>
+        <h2>Hinweise</h2>
         <ul id="notes"></ul>
       </div>
 
       <div class="card meta">
         <h2>Berechnungs-Grundlagen</h2>
         <p>
-          Auslegung nach klassischer Stroemungsmaschinen-Theorie:
+          Auslegung nach Stroemungsmaschinen-Theorie:
           Euler-Gleichung, Cordier-Diagramm, Slip-Faktor nach Wiesner /
           Stodola, Pfleiderer-Schaufelzahl, Druckziffer &psi;,
-          Lieferziffer &phi;.  Spezifische Anpassungen fuer die
-          Zementindustrie (Heissgas, Staubbeladung, Verschleiss) nach
-          VDZ-Merkblaettern und Herstellerunterlagen.
+          Lieferziffer &phi;.  Anpassungen fuer die Zementindustrie
+          (Heissgas, Staubbeladung, Verschleiss) nach VDZ und
+          Herstellerunterlagen.
         </p>
         <p class="fineprint">
-          Diese Anwendung liefert eine Vor-Auslegung. Eine ausgefuehrte
-          Stroemungs- und Festigkeitsrechnung (CFD / FEM) ist bei
-          Auftragserteilung verbindlich.
+          Vor-Auslegung. Eine ausgefuehrte Stroemungs- und
+          Festigkeitsrechnung (CFD / FEM) ist im Auftragsfall
+          verbindlich.
         </p>
       </div>
     </section>

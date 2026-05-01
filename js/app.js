@@ -354,11 +354,53 @@ function renderNotes(r) {
   });
 }
 
+// ---------- live recalc with debounce ----------
+let calcTimer = null;
+function scheduleCalc() {
+  clearTimeout(calcTimer);
+  calcTimer = setTimeout(runCalc, 250);
+}
+
+// ---------- collapsible inputs panel (mobile) ----------
+function setupInputsToggle() {
+  const panel = $('panel-inputs');
+  const btn = $('inputs-toggle');
+  if (!panel || !btn) return;
+  btn.addEventListener('click', () => {
+    const collapsed = panel.classList.toggle('collapsed');
+    btn.textContent = collapsed ? 'Eingaben einblenden' : 'Eingaben einklappen';
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    if (collapsed) {
+      // jump to results so user can see them after collapsing
+      document.querySelector('.results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+}
+
 // ---------- bootstrap ----------
 document.addEventListener('DOMContentLoaded', () => {
   fillPresetSelect();
-  $('preset').addEventListener('change', (e) => applyPreset(e.target.value));
+
+  // Preset change -> fill values, recalc, collapse panel on small screens
+  $('preset').addEventListener('change', (e) => {
+    applyPreset(e.target.value);
+    runCalc();
+  });
+
+  // Manual recalc button (still useful; also on mobile if user disabled live)
   $('calc').addEventListener('click', runCalc);
+
+  // Live recalc on every input change so mobile users don't have to scroll
+  // back to the button after every tweak.
+  ['Q', 'dp', 'T', 'p', 'dust', 'n', 'bladeType', 'slipModel'].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', scheduleCalc);
+    el.addEventListener('change', scheduleCalc);
+  });
+
+  setupInputsToggle();
+
   // initial calculation
   runCalc();
 });
