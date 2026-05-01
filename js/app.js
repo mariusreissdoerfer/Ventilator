@@ -69,6 +69,10 @@ function runCalc() {
   res.power.P_shaft_W = det.losses.P_shaft_W;
   res.power.P_motor_W = det.losses.P_motor_W;
 
+  // run engineering-grade verification (multi-DOF rotor FEM, sigma(r),
+  // off-design map). Not 3D-CFD/FEM but the classical equivalents.
+  const ver = CFD_FEM.verification(res, det);
+
   renderSummary(res);
   renderGeometry(res);
   renderVelocityTriangle(res);
@@ -77,8 +81,11 @@ function runCalc() {
   renderStrength(res, det.strength);
   renderRotor(res, det.rotorDyn);
   renderVolute(res, det.volute);
+  renderRotorFEM(res, ver.rotorFEM);
+  renderDiskProfile(res, ver.diskProfile, det.strength);
+  renderOffDesign(res, ver.offDesign);
   renderMaterials(res);
-  renderNotes(res, det);
+  renderNotes(res, det, ver);
 }
 
 // ---------- summary KPIs ----------
@@ -470,6 +477,253 @@ function renderVolute(r, V) {
   `;
 }
 
+// ====================================================================
+// VERIFICATION RENDERERS (multi-DOF rotor FEM / sigma(r) / off-design)
+// ====================================================================
+
+// ---------- generic SVG axis helper ----------
+function svgAxes({ W, H, padL, padR, padT, padB, xMax, yMax, xLabel, yLabel, xTicks = 5, yTicks = 5, y2Max, y2Label }) {
+  let s = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const y = padT + i * (H - padT - padB) / yTicks;
+    const v = yMax * (1 - i / yTicks);
+    s += `<line class="svg-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>`;
+    s += `<text class="svg-label" x="${padL - 6}" y="${y + 3}" text-anchor="end">${fmt(v, 0)}</text>`;
+    if (y2Max !== undefined) {
+      const v2 = y2Max * (1 - i / yTicks);
+      s += `<text class="svg-label" x="${W - padR + 6}" y="${y + 3}">${fmt(v2, 0)}</text>`;
+    }
+  }
+  for (let i = 0; i <= xTicks; i++) {
+    const x = padL + i * (W - padL - padR) / xTicks;
+    const v = xMax * i / xTicks;
+    s += `<line class="svg-grid" x1="${x}" y1="${padT}" x2="${x}" y2="${H - padB}"/>`;
+    s += `<text class="svg-label" x="${x}" y="${H - padB + 14}" text-anchor="middle">${fmt(v, 0)}</text>`;
+  }
+  s += `<line class="svg-axis" x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}"/>`;
+  s += `<line class="svg-axis" x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}"/>`;
+  if (y2Max !== undefined) {
+    s += `<line class="svg-axis" x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${H - padB}"/>`;
+    s += `<text class="svg-label" x="${W - padR + 8}" y="${padT - 4}">${y2Label}</text>`;
+  }
+  s += `<text class="svg-label" x="${padL - 40}" y="${padT - 4}">${yLabel}</text>`;
+  s += `<text class="svg-label" x="${W / 2}" y="${H - 4}" text-anchor="middle">${xLabel}</text>`;
+  return s;
+}
+
+// ---------- rotor FEM (Campbell) ----------
+function renderRotorFEM(r, F) {
+  if (!F) return;
+  const rows = F.criticals.map((c, i) => {
+    const margin = F.margins[i];
+    const cls = margin.pass ? 'good' : 'bad';
+    return `<div class="kpi ${cls}">
+      <div class="label">${i + 1}. krit. Drehzahl</div>
+      <div class="value">${fmt(c.n_crit_rpm, 0)}<span class="unit">1/min</span></div>
+    </div>`;
+  }).join('');
+  const op_cls = F.pass ? 'good' : 'bad';
+  $('rotorfem-summary').innerHTML = `
+    <div class="kpi"><div class="label">Betriebsdrehzahl</div>
+      <div class="value">${fmt(F.n_op, 0)}<span class="unit">1/min</span></div></div>
+    ${rows}
+    <div class="kpi ${op_cls}"><div class="label">Sicherheitsabstand &ge; 15 %</div>
+      <div class="value">${F.pass ? 'EINGEHALTEN' : 'VERLETZT'}</div></div>
+  `;
+
+  // Campbell diagram: x = rotor speed [rpm], y = frequency [Hz]
+  // Plot: 1x line (synchronous), 2x, blade-pass; horizontal lines for n_crit
+  const W = 600, H = 320, padL = 60, padR = 30, padT = 20, padB = 40;
+  const n_max = Math.max(F.n_op * 1.5, ...F.criticals.map(c => c.n_crit_rpm)) * 1.1;
+  const f_max = Math.max(...F.criticals.map(c => c.f_Hz)) * 1.2;
+  let svg = svgAxes({ W, H, padL, padR, padT, padB, xMax: n_max, yMax: f_max,
+                      xLabel: 'n [1/min]', yLabel: 'f [Hz]' });
+
+  // 1x and 2x synchronous lines
+  const X = (n) => padL + (n / n_max) * (W - padL - padR);
+  const Y = (f) => H - padB - (f / f_max) * (H - padT - padB);
+  const f1 = (n) => n / 60;
+  const f2 = (n) => 2 * n / 60;
+  const Z = r.geometry.Z;
+  const fz = (n) => Z * n / 60;
+
+  svg += `<path class="svg-curve" d="M${X(0)},${Y(f1(0))} L${X(n_max)},${Y(f1(n_max))}"/>`;
+  svg += `<text class="svg-label" x="${W - padR - 30}" y="${Y(f1(n_max)) - 4}">1x</text>`;
+  svg += `<path stroke="#7a8b3a" stroke-width="1.5" fill="none" stroke-dasharray="3 3" d="M${X(0)},${Y(f2(0))} L${X(n_max)},${Y(Math.min(f_max, f2(n_max)))}"/>`;
+  svg += `<text class="svg-label" x="${W - padR - 30}" y="${Y(Math.min(f_max, f2(n_max))) - 4}">2x</text>`;
+  if (Z * f1(n_max) <= f_max) {
+    svg += `<path stroke="#a0500a" stroke-width="1.5" fill="none" stroke-dasharray="2 4" d="M${X(0)},${Y(0)} L${X(n_max)},${Y(fz(n_max))}"/>`;
+    svg += `<text class="svg-label" x="${W - padR - 30}" y="${Y(fz(n_max)) + 12}">Z·1x (Schaufelpass)</text>`;
+  }
+
+  // Critical-speed horizontals
+  F.criticals.forEach((c, i) => {
+    svg += `<line stroke="#b3261e" stroke-width="1.5" stroke-dasharray="6 3" x1="${padL}" y1="${Y(c.f_Hz)}" x2="${W - padR}" y2="${Y(c.f_Hz)}"/>`;
+    svg += `<text class="svg-label" x="${padL + 6}" y="${Y(c.f_Hz) - 4}">f<sub>${i + 1}</sub> = ${fmt(c.f_Hz, 1)} Hz</text>`;
+  });
+
+  // Operating speed and ±15% band
+  svg += `<rect x="${X(F.n_op * 0.85)}" y="${padT}" width="${X(F.n_op * 1.15) - X(F.n_op * 0.85)}" height="${H - padT - padB}" fill="rgba(28,93,153,.06)"/>`;
+  svg += `<line stroke="#1c5d99" stroke-width="2" x1="${X(F.n_op)}" y1="${padT}" x2="${X(F.n_op)}" y2="${H - padB}"/>`;
+  svg += `<text class="svg-label" x="${X(F.n_op) + 4}" y="${padT + 12}">n<sub>op</sub></text>`;
+  $('campbell-svg').innerHTML = svg;
+
+  // Mode-shape sketch: shaft length normalized to W, draw first mode
+  const W2 = 600, H2 = 200;
+  const shaft = `<line stroke="#888" stroke-width="2" x1="20" y1="${H2 / 2}" x2="${W2 - 20}" y2="${H2 / 2}"/>`;
+  // Draw stations as triangles
+  const stationMarks = F.rotor.stations.map((st) => {
+    const x = 20 + (st.x / F.rotor.totalLength) * (W2 - 40);
+    if (st.k > 0) {
+      return `<polygon points="${x - 6},${H2 / 2 + 14} ${x + 6},${H2 / 2 + 14} ${x},${H2 / 2 + 4}" fill="#555"/>`;
+    }
+    if (st.m > 0) {
+      return `<rect x="${x - 8}" y="${H2 / 2 - 12}" width="16" height="24" fill="#1c5d99"/>`;
+    }
+    return '';
+  }).join('');
+  // Mode shapes
+  const colors = ['#c75b12', '#7a8b3a', '#1c5d99'];
+  let modes = '';
+  F.modeShapes.forEach((shape, idx) => {
+    if (idx > 2) return;
+    let d = '';
+    shape.forEach((pt, i) => {
+      const x = 20 + (pt.x / F.rotor.totalLength) * (W2 - 40);
+      const y = H2 / 2 - pt.y * 60;
+      d += (i ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    modes += `<path stroke="${colors[idx]}" stroke-width="2" fill="none" d="${d}"/>`;
+    modes += `<text class="svg-label" x="${W2 - 100}" y="${20 + idx * 14}" fill="${colors[idx]}">Mode ${idx + 1}: ${fmt(F.criticals[idx].n_crit_rpm, 0)} 1/min</text>`;
+  });
+  $('modeshape-svg').innerHTML = `${shaft}${stationMarks}${modes}`;
+
+  $('modeshape-table').innerHTML = `
+    <table class="data">
+      <tr><th>Wellenlaenge</th><td>${fmt(F.rotor.totalLength * 1000, 0)} mm</td></tr>
+      <tr><th>EI (Welle)</th><td>${fmt(F.rotor.EI / 1e6, 1)} kN m&sup2;</td></tr>
+      <tr><th>Stationen (Lager / Massen)</th><td>${F.rotor.stations.length}</td></tr>
+    </table>
+  `;
+}
+
+// ---------- disk stress profile sigma(r) ----------
+function renderDiskProfile(r, D, S1D) {
+  if (!D) return;
+  // KPIs
+  const peak = D.peak;
+  const SF = D.Rp02_T_MPa / peak.sigma_v_MPa;
+  const cls = SF >= 1.5 ? 'good' : 'bad';
+  $('diskprofile-summary').innerHTML = `
+    <div class="kpi"><div class="label">&sigma;<sub>v</sub> Maximum</div>
+      <div class="value">${fmt(peak.sigma_v_MPa, 0)}<span class="unit">N/mm&sup2;</span></div></div>
+    <div class="kpi"><div class="label">Position r/R<sub>o</sub></div>
+      <div class="value">${fmt(peak.r_m / D.R_o_m, 2)}</div></div>
+    <div class="kpi"><div class="label">R<sub>p0.2</sub>(T)</div>
+      <div class="value">${fmt(D.Rp02_T_MPa, 0)}<span class="unit">N/mm&sup2;</span></div></div>
+    <div class="kpi ${cls}"><div class="label">SF (Verifikation)</div>
+      <div class="value">${fmt(SF, 2)}</div></div>
+  `;
+
+  // Plot sigma_r, sigma_t, sigma_v vs. r/R_o
+  const W = 600, H = 280, padL = 60, padR = 100, padT = 20, padB = 40;
+  const ymax = Math.max(...D.points.map(p => Math.max(p.sigma_r_MPa, p.sigma_t_MPa, p.sigma_v_MPa))) * 1.1;
+  let svg = svgAxes({ W, H, padL, padR, padT, padB, xMax: 1.0, yMax: ymax,
+                      xLabel: '(r-R_i)/(R_o-R_i)', yLabel: 'σ [N/mm²]' });
+  const X = (q) => padL + q * (W - padL - padR);
+  const Y = (s) => H - padB - (s / ymax) * (H - padT - padB);
+
+  function path(values, color, dash) {
+    let d = '';
+    D.points.forEach((p, i) => {
+      d += (i ? 'L' : 'M') + X(p.r_norm).toFixed(1) + ',' + Y(values[i]).toFixed(1);
+    });
+    return `<path stroke="${color}" stroke-width="2" fill="none" ${dash ? 'stroke-dasharray="' + dash + '"' : ''} d="${d}"/>`;
+  }
+  svg += path(D.points.map(p => p.sigma_r_MPa), '#c75b12', '4 3');
+  svg += path(D.points.map(p => p.sigma_t_MPa), '#1c5d99');
+  svg += path(D.points.map(p => p.sigma_v_MPa), '#2e7d32');
+
+  // Yield line
+  const yY = Y(D.Rp02_T_MPa);
+  if (yY > padT && yY < H - padB) {
+    svg += `<line stroke="#b3261e" stroke-width="1.5" stroke-dasharray="6 3" x1="${padL}" y1="${yY}" x2="${W - padR}" y2="${yY}"/>
+            <text class="svg-label" x="${W - padR - 80}" y="${yY - 4}" fill="#b3261e">R<sub>p0.2</sub>(T)</text>`;
+  }
+  // Allowable (Rp/SF)
+  const allow = D.Rp02_T_MPa / 1.5;
+  const yA = Y(allow);
+  if (yA > padT && yA < H - padB) {
+    svg += `<line stroke="#c25d00" stroke-width="1" stroke-dasharray="2 3" x1="${padL}" y1="${yA}" x2="${W - padR}" y2="${yA}"/>
+            <text class="svg-label" x="${W - padR - 80}" y="${yA - 4}" fill="#c25d00">zul. (SF=1.5)</text>`;
+  }
+  // Legend
+  svg += `<g transform="translate(${W - padR + 4}, ${padT + 20})">
+            <line x1="0" y1="0" x2="20" y2="0" stroke="#1c5d99" stroke-width="2"/>
+            <text class="svg-label" x="24" y="3">σ<tspan>θ</tspan></text>
+            <line x1="0" y1="16" x2="20" y2="16" stroke="#c75b12" stroke-width="2" stroke-dasharray="4 3"/>
+            <text class="svg-label" x="24" y="19">σ<tspan>r</tspan></text>
+            <line x1="0" y1="32" x2="20" y2="32" stroke="#2e7d32" stroke-width="2"/>
+            <text class="svg-label" x="24" y="35">σ<tspan>v</tspan> (Mises)</text>
+          </g>`;
+  $('diskprofile-svg').innerHTML = svg;
+}
+
+// ---------- off-design map ----------
+function renderOffDesign(r, M) {
+  if (!M) return;
+  const cls = M.pass ? 'good' : 'warn';
+  const surge = M.points[M.surgeIdx];
+  const bep = M.points[M.bepIdx];
+  $('offdesign-summary').innerHTML = `
+    <div class="kpi ${cls}"><div class="label">Stall-Marge</div>
+      <div class="value">${fmt(M.stallMargin_pct, 0)}<span class="unit">%</span></div></div>
+    <div class="kpi"><div class="label">Surge bei Q</div>
+      <div class="value">${fmt(surge.Q_m3h, 0)}<span class="unit">m&sup3;/h</span></div></div>
+    <div class="kpi"><div class="label">BEP bei Q</div>
+      <div class="value">${fmt(bep.Q_m3h, 0)}<span class="unit">m&sup3;/h</span></div></div>
+    <div class="kpi"><div class="label">&eta;<sub>BEP</sub></div>
+      <div class="value">${fmt(bep.eta * 100, 1)}<span class="unit">%</span></div></div>
+  `;
+
+  const W = 600, H = 360, padL = 60, padR = 60, padT = 20, padB = 40;
+  const xMax = Math.max(...M.points.map(p => p.Q_m3h)) * 1.05;
+  const yMaxDp = Math.max(...M.points.map(p => p.dp_Pa)) * 1.10;
+  const yMaxEta = 1.0;
+  let svg = svgAxes({ W, H, padL, padR, padT, padB, xMax, yMax: yMaxDp,
+                      y2Max: 100, y2Label: 'η [%]',
+                      xLabel: 'Q [m³/h]', yLabel: 'Δp [Pa]' });
+  const X = (q) => padL + (q / xMax) * (W - padL - padR);
+  const Yd = (d) => H - padB - (d / yMaxDp) * (H - padT - padB);
+  const Ye = (e) => H - padB - e * (H - padT - padB);
+
+  // Surge zone shading
+  svg += `<rect x="${padL}" y="${padT}" width="${X(surge.Q_m3h) - padL}" height="${H - padT - padB}" fill="rgba(179,38,30,.08)"/>`;
+  svg += `<text class="svg-label" x="${(padL + X(surge.Q_m3h)) / 2}" y="${padT + 14}" text-anchor="middle" fill="#b3261e">Surge-Zone</text>`;
+
+  // dp curve
+  let pathDp = '';
+  M.points.forEach((p, i) => { pathDp += (i ? 'L' : 'M') + X(p.Q_m3h).toFixed(1) + ',' + Yd(p.dp_Pa).toFixed(1); });
+  svg += `<path class="svg-curve" d="${pathDp}"/>`;
+
+  // eta curve
+  let pathEta = '';
+  M.points.forEach((p, i) => { pathEta += (i ? 'L' : 'M') + X(p.Q_m3h).toFixed(1) + ',' + Ye(p.eta).toFixed(1); });
+  svg += `<path stroke="#7a8b3a" stroke-width="2" fill="none" stroke-dasharray="4 3" d="${pathEta}"/>`;
+
+  // Markers: Design point, BEP, Surge
+  const Qd = r.inputs.Q_m3h;
+  const dpd = r.inputs.dp_total_Pa;
+  svg += `<circle cx="${X(Qd)}" cy="${Yd(dpd)}" r="6" fill="#c75b12"/>
+          <text class="svg-label" x="${X(Qd) + 8}" y="${Yd(dpd) - 8}" fill="#c75b12">Auslegung</text>`;
+  svg += `<circle cx="${X(bep.Q_m3h)}" cy="${Ye(bep.eta)}" r="5" fill="#7a8b3a"/>
+          <text class="svg-label" x="${X(bep.Q_m3h) - 6}" y="${Ye(bep.eta) - 8}" fill="#7a8b3a" text-anchor="end">BEP</text>`;
+  svg += `<line stroke="#b3261e" stroke-width="2" stroke-dasharray="3 3" x1="${X(surge.Q_m3h)}" y1="${padT}" x2="${X(surge.Q_m3h)}" y2="${H - padB}"/>
+          <text class="svg-label" x="${X(surge.Q_m3h) + 6}" y="${H - padB - 6}" fill="#b3261e">Surge</text>`;
+
+  $('offdesign-svg').innerHTML = svg;
+}
+
 // ---------- materials ----------
 function renderMaterials(r) {
   const m = MATERIALS[r.materials.wheelMaterial];
@@ -506,7 +760,7 @@ function renderMaterials(r) {
 }
 
 // ---------- notes ----------
-function renderNotes(r, det) {
+function renderNotes(r, det, ver) {
   const preset = CEMENT_PRESETS.find((p) => p.id === $('preset').value);
   const ul = $('notes');
   ul.innerHTML = '';
@@ -517,10 +771,27 @@ function renderNotes(r, det) {
     notes.push(`<strong style="color:var(--bad)">Festigkeit:</strong> SF = ${det.strength.safetyFactor.toFixed(2)} &lt; 1.5 &mdash; Wandstaerken erhoehen, Drehzahl reduzieren oder hoeherfesten Werkstoff waehlen.`);
   }
   if (det && det.rotorDyn && !det.rotorDyn.pass) {
-    notes.push(`<strong style="color:var(--bad)">Rotordynamik:</strong> Betriebsdrehzahl liegt im kritischen Bereich (${det.rotorDyn.regime}). Lagerabstand verkuerzen oder Wellendurchmesser erhoehen.`);
+    notes.push(`<strong style="color:var(--bad)">Rotordynamik (1D):</strong> Betriebsdrehzahl liegt im kritischen Bereich (${det.rotorDyn.regime}). Lagerabstand verkuerzen oder Wellendurchmesser erhoehen.`);
   }
   if (det && det.losses && det.losses.deHaller < 0.72) {
     notes.push(`<strong style="color:var(--warn)">Aerodynamik:</strong> de-Haller-Kriterium w2/w1 = ${det.losses.deHaller.toFixed(2)} &lt; 0.72 &mdash; Gefahr der Stroemungsabloesung im Schaufelkanal. b2 erhoehen oder beta2 anpassen.`);
+  }
+
+  // Verification warnings
+  if (ver && ver.rotorFEM && !ver.rotorFEM.pass) {
+    const offending = ver.rotorFEM.margins
+      .map((mg, i) => mg.pass ? null : `${i + 1}. (${mg.n_crit_rpm.toFixed(0)} 1/min, &Delta; = ${mg.margin_pct.toFixed(0)} %)`)
+      .filter(Boolean).join(', ');
+    notes.push(`<strong style="color:var(--bad)">Rotor-FEM:</strong> Mehrfreiheitsgrad-Modell zeigt zu geringen Abstand zu kritischen Drehzahlen: ${offending}. API 673 fordert &ge; 15 % Trennung.`);
+  }
+  if (ver && ver.offDesign && !ver.offDesign.pass) {
+    notes.push(`<strong style="color:var(--warn)">Off-Design:</strong> Stall-Marge ${ver.offDesign.stallMargin_pct.toFixed(0)} % &lt; 10 % &mdash; Auslegungspunkt zu nahe am Surge. Drehzahlregelung und Mindestlast-Klappe vorsehen.`);
+  }
+  if (ver && ver.diskProfile && ver.diskProfile.peak) {
+    const SF_disk = ver.diskProfile.Rp02_T_MPa / ver.diskProfile.peak.sigma_v_MPa;
+    if (SF_disk < 1.5) {
+      notes.push(`<strong style="color:var(--bad)">&sigma;(r)-Verifikation:</strong> Maximale Vergleichsspannung am Innenrand ${ver.diskProfile.peak.sigma_v_MPa.toFixed(0)} N/mm&sup2; ergibt SF = ${SF_disk.toFixed(2)}. Bohrungsbereich konstruktiv verstaerken (Verstaerkungsring, Hyperbel-Profil).`);
+    }
   }
 
   // Add automatically generated warnings
