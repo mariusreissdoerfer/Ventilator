@@ -86,6 +86,7 @@ function runCalc() {
   renderOffDesign(res, ver.offDesign);
   renderFlowField(res);
   renderStressField(ver.diskProfile);
+  if (window.ThreeModel) window.ThreeModel.update(res);
   renderMaterials(res);
   renderNotes(res, det, ver);
 }
@@ -755,11 +756,18 @@ function jetColor(t) {
   return 'rgb(128,0,0)';
 }
 
-function jetGradientStops() {
+// Build a vertical colorbar as N stacked rectangles instead of a
+// linearGradient.  More robust across browsers (iOS Safari occasionally
+// drops linearGradient stops set via innerHTML, especially when their
+// offsets are not strictly increasing) and looks identical.
+function buildColorbar(x, y, w, h, segments = 48) {
   let s = '';
-  for (let i = 0; i <= 10; i++) {
-    s += `<stop offset="${(1 - i / 10).toFixed(2)}" stop-color="${jetColor(i / 10)}"/>`;
+  const segH = h / segments + 0.6;   // tiny overlap to avoid hairlines
+  for (let i = 0; i < segments; i++) {
+    const t = 1 - i / (segments - 1);  // top = high (1), bottom = low (0)
+    s += `<rect x="${x}" y="${(y + i * h / segments).toFixed(2)}" width="${w}" height="${segH.toFixed(2)}" fill="${jetColor(t)}" stroke="none"/>`;
   }
+  s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#555" stroke-width="0.8"/>`;
   return s;
 }
 
@@ -847,12 +855,8 @@ function renderFlowField(r) {
     inflow += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${jetColor((w1 - w_lo) / span)}" stroke-width="1.5"/>`;
   }
 
+  const cbX = R2 + 30, cbY = -100, cbW = 16, cbH = 200;
   $('flowfield-svg').innerHTML = `
-    <defs>
-      <linearGradient id="cbarFlow" x1="0" y1="1" x2="0" y2="0">
-        ${jetGradientStops()}
-      </linearGradient>
-    </defs>
     ${refs}
     ${inflow}
     ${stream}
@@ -861,12 +865,11 @@ function renderFlowField(r) {
     <text class="svg-label" x="0" y="-${R2 + 16}" text-anchor="middle">Schaufelkanal (Blade-to-Blade)</text>
     <text class="svg-label" x="0" y="${R2 + 22}" text-anchor="middle">w&#x2081;=${fmt(w1, 0)} m/s &rarr; w&#x2082;=${fmt(w2, 0)} m/s</text>
 
-    <!-- Color bar -->
-    <rect x="${R2 + 30}" y="-100" width="18" height="200" fill="url(#cbarFlow)" stroke="#555"/>
-    <text class="svg-label" x="${R2 + 53}" y="-95">${fmt(w_hi, 0)}</text>
-    <text class="svg-label" x="${R2 + 53}" y="0">${fmt(0.5*(w_lo+w_hi), 0)}</text>
-    <text class="svg-label" x="${R2 + 53}" y="105">${fmt(w_lo, 0)}</text>
-    <text class="svg-label" x="${R2 + 53}" y="125">m/s</text>
+    ${buildColorbar(cbX, cbY, cbW, cbH)}
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + 4}">${fmt(w_hi, 0)}</text>
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + cbH/2 + 4}">${fmt(0.5*(w_lo+w_hi), 0)}</text>
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + cbH + 4}">${fmt(w_lo, 0)}</text>
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + cbH + 20}">m/s</text>
   `;
 }
 
@@ -889,34 +892,27 @@ function renderStressField(D) {
   // Bohrungs-Maske + zwei kleine Markierungen am Ort des Maximums
   const peak_r_px = R_i + (R_o - R_i) * D.peak.r_norm;
 
+  const cbX = R_o + 30, cbY = -100, cbW = 16, cbH = 200;
   $('stressfield-svg').innerHTML = `
     <defs>
       <radialGradient id="stressGrad" cx="0" cy="0" r="${R_o}" gradientUnits="userSpaceOnUse">
         ${stops}
       </radialGradient>
-      <linearGradient id="cbarStress" x1="0" y1="1" x2="0" y2="0">
-        ${jetGradientStops()}
-      </linearGradient>
     </defs>
 
-    <!-- Disk -->
     <circle cx="0" cy="0" r="${R_o}" fill="url(#stressGrad)" stroke="#222" stroke-width="1.5"/>
-    <!-- Bore -->
     <circle cx="0" cy="0" r="${R_i}" fill="#fff" stroke="#222" stroke-width="1.5"/>
-
-    <!-- Peak-stress marker ring -->
     <circle cx="0" cy="0" r="${peak_r_px}" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="2 3"/>
 
     <text class="svg-label" x="0" y="-${R_o + 8}" text-anchor="middle">Laufrad-Querschnitt (rotationssymmetrisch)</text>
     <text class="svg-label" x="0" y="${R_o + 18}" text-anchor="middle">D2=${fmt(D.R_o_m * 2 * 1000, 0)} mm, D_bohr=${fmt(D.R_i_m * 2 * 1000, 0)} mm</text>
     <text class="svg-label" x="0" y="${R_o + 34}" text-anchor="middle">&sigma;<sub>v,max</sub> = ${fmt(s_max, 0)} N/mm&sup2; bei r/R<sub>o</sub> = ${fmt(D.peak.r_m / D.R_o_m, 2)}</text>
 
-    <!-- Color bar -->
-    <rect x="${R_o + 30}" y="-100" width="18" height="200" fill="url(#cbarStress)" stroke="#555"/>
-    <text class="svg-label" x="${R_o + 53}" y="-95">${fmt(s_max, 0)}</text>
-    <text class="svg-label" x="${R_o + 53}" y="0">${fmt(0.5*(s_min+s_max), 0)}</text>
-    <text class="svg-label" x="${R_o + 53}" y="105">${fmt(s_min, 0)}</text>
-    <text class="svg-label" x="${R_o + 53}" y="125">N/mm&sup2;</text>
+    ${buildColorbar(cbX, cbY, cbW, cbH)}
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + 4}">${fmt(s_max, 0)}</text>
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + cbH/2 + 4}">${fmt(0.5*(s_min+s_max), 0)}</text>
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + cbH + 4}">${fmt(s_min, 0)}</text>
+    <text class="svg-label" x="${cbX + cbW + 4}" y="${cbY + cbH + 20}">N/mm&sup2;</text>
   `;
 }
 

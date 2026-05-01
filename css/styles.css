@@ -258,8 +258,23 @@ table.data td { font-family: var(--mono); }
 #diskprofile-svg { aspect-ratio: 600 / 280; min-height: 200px; }
 #offdesign-svg   { aspect-ratio: 600 / 360; min-height: 240px; }
 #volute-svg      { aspect-ratio: 1   / 1;   max-width: 360px; }
-#flowfield-svg   { aspect-ratio: 420 / 400; max-width: 460px; }
-#stressfield-svg { aspect-ratio: 380 / 380; max-width: 380px; }
+#flowfield-svg   { aspect-ratio: 480 / 400; max-width: 540px; }
+#stressfield-svg { aspect-ratio: 460 / 380; max-width: 520px; }
+
+/* 3D viewer */
+.three-container {
+  width: 100%;
+  height: 360px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  touch-action: none;
+}
+@media (min-width: 600px) {
+  .three-container { height: 480px; }
+}
+.three-container canvas { display: block; }
 
 /* ---------- materials & notes ---------- */
 #materials .row {
