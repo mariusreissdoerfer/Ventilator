@@ -234,17 +234,32 @@ table.data td { font-family: var(--mono); }
   .geom-row { grid-template-columns: 1fr 360px; gap: 16px; }
 }
 
-#geom-svg, #vt-svg, #curve-svg {
+/* All inline SVGs inside result cards get a consistent base.
+   Without explicit width/height attributes (and no CSS rule) iOS
+   Safari leaves SVGs at unspecified dimensions, which breaks
+   layouts -- some collapse to 0, others fill the page. */
+.card svg {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 4px;
   width: 100%;
   height: auto;
   display: block;
+  margin: 0 auto;
 }
-#geom-svg { aspect-ratio: 1 / 1; max-width: 360px; margin: 0 auto; }
-#vt-svg   { aspect-ratio: 1.6 / 1; }
-#curve-svg { min-height: 220px; }
+/* Per-SVG aspect ratios (match each viewBox so the box height is
+   determined unambiguously, regardless of intrinsic-size handling). */
+#geom-svg        { aspect-ratio: 1   / 1;   max-width: 360px; }
+#vt-svg          { aspect-ratio: 1.6 / 1; }
+#curve-svg       { aspect-ratio: 600 / 320; min-height: 220px; }
+#campbell-svg    { aspect-ratio: 600 / 320; min-height: 220px; }
+#modeshape-svg   { aspect-ratio: 600 / 200; min-height: 140px; }
+#losses-svg      { aspect-ratio: 600 / 120; min-height: 90px; }
+#diskprofile-svg { aspect-ratio: 600 / 280; min-height: 200px; }
+#offdesign-svg   { aspect-ratio: 600 / 360; min-height: 240px; }
+#volute-svg      { aspect-ratio: 1   / 1;   max-width: 360px; }
+#flowfield-svg   { aspect-ratio: 420 / 400; max-width: 460px; }
+#stressfield-svg { aspect-ratio: 380 / 380; max-width: 380px; }
 
 /* ---------- materials & notes ---------- */
 #materials .row {
