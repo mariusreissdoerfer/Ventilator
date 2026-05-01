@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Radialventilator-Auslegung fuer die Zementindustrie</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <h1>Radialventilator-Auslegung</h1>
+      <p class="subtitle">Aerodynamische und mechanische Auslegung fuer Prozessventilatoren der Zementindustrie</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ============== INPUTS ============== -->
+    <section class="card panel-inputs">
+      <h2>1. Anwendung</h2>
+      <label class="field">
+        <span>Anwendung / Preset</span>
+        <select id="preset"></select>
+      </label>
+      <p id="preset-desc" class="hint"></p>
+
+      <h2>2. Betriebspunkt</h2>
+      <div class="grid2">
+        <label class="field">
+          <span>Volumenstrom Q</span>
+          <input type="number" id="Q" step="100" min="100" />
+          <em class="unit">m&sup3;/h</em>
+        </label>
+        <label class="field">
+          <span>Gesamtdruckerhoehung &Delta;p<sub>t</sub></span>
+          <input type="number" id="dp" step="50" min="50" />
+          <em class="unit">Pa</em>
+        </label>
+        <label class="field">
+          <span>Gastemperatur T</span>
+          <input type="number" id="T" step="1" />
+          <em class="unit">&deg;C</em>
+        </label>
+        <label class="field">
+          <span>Umgebungsdruck p</span>
+          <input type="number" id="p" step="100" />
+          <em class="unit">Pa</em>
+        </label>
+        <label class="field">
+          <span>Staubbeladung</span>
+          <input type="number" id="dust" step="1" min="0" />
+          <em class="unit">g/m&sup3;</em>
+        </label>
+        <label class="field">
+          <span>Drehzahl n</span>
+          <input type="number" id="n" step="5" min="100" />
+          <em class="unit">1/min</em>
+        </label>
+      </div>
+
+      <h2>3. Schaufeltyp</h2>
+      <label class="field">
+        <span>Schaufelform</span>
+        <select id="bladeType">
+          <option value="auto">Automatisch (nach Cordier)</option>
+          <option value="backward-curved-airfoil">Rueckwaerts gekruemmt, Profil</option>
+          <option value="backward-curved">Rueckwaerts gekruemmt</option>
+          <option value="radial-curved">Radial gekruemmt</option>
+          <option value="radial-straight">Radial gerade (Paddelrad)</option>
+          <option value="forward-curved">Vorwaerts gekruemmt</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Slip-Modell</span>
+        <select id="slipModel">
+          <option value="wiesner">Wiesner (1967)</option>
+          <option value="stodola">Stodola (1924)</option>
+        </select>
+      </label>
+
+      <button id="calc" class="primary">Auslegung berechnen</button>
+    </section>
+
+    <!-- ============== RESULTS ============== -->
+    <section class="results">
+      <div class="card">
+        <h2>Auslegungsergebnis</h2>
+        <div id="summary" class="summary"></div>
+      </div>
+
+      <div class="card">
+        <h2>Geometrie</h2>
+        <div class="geom-row">
+          <div id="geom-table"></div>
+          <svg id="geom-svg" viewBox="-180 -180 360 360" aria-label="Laufradgeometrie"></svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Geschwindigkeitsdreieck (Austritt)</h2>
+        <svg id="vt-svg" viewBox="-20 -20 320 200" aria-label="Geschwindigkeitsdreieck"></svg>
+        <div id="vt-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>Kennlinie</h2>
+        <svg id="curve-svg" viewBox="0 0 600 320" aria-label="Kennlinie"></svg>
+      </div>
+
+      <div class="card">
+        <h2>Werkstoff &amp; Verschleissschutz</h2>
+        <div id="materials"></div>
+      </div>
+
+      <div class="card">
+        <h2>Hinweise zur Anwendung</h2>
+        <ul id="notes"></ul>
+      </div>
+
+      <div class="card meta">
+        <h2>Berechnungs-Grundlagen</h2>
+        <p>
+          Auslegung nach klassischer Stroemungsmaschinen-Theorie:
+          Euler-Gleichung, Cordier-Diagramm, Slip-Faktor nach Wiesner /
+          Stodola, Pfleiderer-Schaufelzahl, Druckziffer &psi;,
+          Lieferziffer &phi;.  Spezifische Anpassungen fuer die
+          Zementindustrie (Heissgas, Staubbeladung, Verschleiss) nach
+          VDZ-Merkblaettern und Herstellerunterlagen.
+        </p>
+        <p class="fineprint">
+          Diese Anwendung liefert eine Vor-Auslegung. Eine ausgefuehrte
+          Stroemungs- und Festigkeitsrechnung (CFD / FEM) ist bei
+          Auftragserteilung verbindlich.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/fan-design.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/materials.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
