@@ -15,13 +15,15 @@
     </div>
   </header>
 
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Ansicht wechseln">
+    <button class="tab" data-tab="inputs" role="tab" aria-selected="true">Eingaben</button>
+    <button class="tab" data-tab="results" role="tab" aria-selected="false">Ergebnis</button>
+  </nav>
+
   <main class="layout">
     <!-- ============== INPUTS ============== -->
-    <section class="card panel-inputs" id="panel-inputs">
+    <section class="card panel-inputs" id="panel-inputs" role="tabpanel" aria-labelledby="tab-inputs">
       <h2>1. Anwendung</h2>
-      <button type="button" class="inputs-toggle" id="inputs-toggle" aria-expanded="true">
-        Eingaben einklappen
-      </button>
       <label class="field">
         <span>Anwendung / Preset</span>
         <select id="preset"></select>
@@ -82,11 +84,11 @@
         </select>
       </label>
 
-      <button id="calc" class="primary">Auslegung berechnen</button>
+      <button id="calc" class="primary">Ergebnis ansehen</button>
     </section>
 
     <!-- ============== RESULTS ============== -->
-    <section class="results">
+    <section class="results" id="results" role="tabpanel" aria-labelledby="tab-results">
       <div class="card">
         <h2>Auslegungsergebnis</h2>
         <div id="summary" class="summary"></div>
@@ -137,6 +139,10 @@
           verbindlich.
         </p>
       </div>
+
+      <button id="backToInputs" class="primary mobile-only" type="button">
+        &larr; Eingaben aendern
+      </button>
     </section>
   </main>
 

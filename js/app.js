@@ -361,20 +361,26 @@ function scheduleCalc() {
   calcTimer = setTimeout(runCalc, 250);
 }
 
-// ---------- collapsible inputs panel (mobile) ----------
-function setupInputsToggle() {
-  const panel = $('panel-inputs');
-  const btn = $('inputs-toggle');
-  if (!panel || !btn) return;
-  btn.addEventListener('click', () => {
-    const collapsed = panel.classList.toggle('collapsed');
-    btn.textContent = collapsed ? 'Eingaben einblenden' : 'Eingaben einklappen';
-    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    if (collapsed) {
-      // jump to results so user can see them after collapsing
-      document.querySelector('.results').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+// ---------- mobile tabs ----------
+function setActiveTab(name) {
+  document.body.dataset.active = name;
+  document.querySelectorAll('.tabs .tab').forEach((b) => {
+    b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false');
   });
+  // scroll to top of content (just below the sticky tab bar)
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tabs .tab').forEach((b) => {
+    b.addEventListener('click', () => setActiveTab(b.dataset.tab));
+  });
+  // Default tab on first load
+  document.body.dataset.active = 'inputs';
+
+  // Calc button -> jump to results on mobile
+  const back = $('backToInputs');
+  if (back) back.addEventListener('click', () => setActiveTab('inputs'));
 }
 
 // ---------- bootstrap ----------
@@ -387,8 +393,11 @@ document.addEventListener('DOMContentLoaded', () => {
     runCalc();
   });
 
-  // Manual recalc button (still useful; also on mobile if user disabled live)
-  $('calc').addEventListener('click', runCalc);
+  // "Ergebnis ansehen" button: recalc and on mobile jump to results tab
+  $('calc').addEventListener('click', () => {
+    runCalc();
+    setActiveTab('results');
+  });
 
   // Live recalc on every input change so mobile users don't have to scroll
   // back to the button after every tweak.
@@ -399,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     el.addEventListener('change', scheduleCalc);
   });
 
-  setupInputsToggle();
+  setupTabs();
 
   // initial calculation
   runCalc();

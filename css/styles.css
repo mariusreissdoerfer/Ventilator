@@ -273,26 +273,53 @@ table.data td { font-family: var(--mono); }
 .svg-vector.cu { stroke: #c75b12; opacity: .5; stroke-dasharray: 3 3; }
 .svg-vector.w  { stroke: #2e7d32; }
 
-/* ---------- collapsible inputs panel on mobile ---------- */
-.panel-inputs.collapsed > *:not(.inputs-toggle):not(h2:first-of-type) {
+/* ---------- mobile tab bar ---------- */
+.tabs {
   display: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
 }
-.inputs-toggle {
-  display: none;
+.tabs .tab {
+  flex: 1;
+  height: 42px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 6px;
-  height: 40px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-  width: 100%;
-  margin-top: 4px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.tabs .tab[aria-selected="true"] {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.tabs .tab:active { transform: scale(0.98); }
+
+/* show tabs only on small screens */
 @media (max-width: 899px) {
-  .inputs-toggle { display: block; }
+  .tabs { display: flex; }
+}
+
+/* On mobile, hide the inactive panel based on body[data-active]. */
+@media (max-width: 899px) {
+  body[data-active="results"] .panel-inputs { display: none; }
+  body[data-active="inputs"]  .results       { display: none; }
+}
+
+/* mobile-only helper */
+.mobile-only { display: none; }
+@media (max-width: 899px) {
+  .mobile-only { display: block; }
 }
 
 /* ---------- prevent horizontal scroll ---------- */
