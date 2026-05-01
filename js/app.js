@@ -61,12 +61,24 @@ function runCalc() {
     $('summary').innerHTML = `<div class="kpi bad"><div class="label">Fehler</div><div class="value">${e.message}</div></div>`;
     return;
   }
+  // run detailed-design analysis (loss model + strength + rotor + volute)
+  const det = DetailedDesign.detailedAnalysis(res, res.materials.wheelMaterial);
+  // The calculated efficiency from the loss model overrides the empirical
+  // guess so the summary, power and curve all use a single consistent value.
+  res.aerodynamics.eta_total = det.losses.eta.total;
+  res.power.P_shaft_W = det.losses.P_shaft_W;
+  res.power.P_motor_W = det.losses.P_motor_W;
+
   renderSummary(res);
   renderGeometry(res);
   renderVelocityTriangle(res);
   renderCurve(res);
+  renderLosses(res, det.losses);
+  renderStrength(res, det.strength);
+  renderRotor(res, det.rotorDyn);
+  renderVolute(res, det.volute);
   renderMaterials(res);
-  renderNotes(res);
+  renderNotes(res, det);
 }
 
 // ---------- summary KPIs ----------
@@ -282,6 +294,182 @@ function renderCurve(r) {
   `;
 }
 
+// ---------- losses ----------
+function renderLosses(r, L) {
+  const eta = L.eta;
+  $('losses-summary').innerHTML = `
+    <div class="kpi"><div class="label">&eta;<sub>hyd</sub></div>
+      <div class="value">${fmt(eta.hyd * 100, 1)}<span class="unit">%</span></div></div>
+    <div class="kpi"><div class="label">&eta;<sub>Radseite</sub></div>
+      <div class="value">${fmt(eta.disk * 100, 1)}<span class="unit">%</span></div></div>
+    <div class="kpi"><div class="label">&eta;<sub>Spalt</sub></div>
+      <div class="value">${fmt(eta.leak * 100, 2)}<span class="unit">%</span></div></div>
+    <div class="kpi"><div class="label">&eta;<sub>mech</sub></div>
+      <div class="value">${fmt(eta.mech * 100, 1)}<span class="unit">%</span></div></div>
+    <div class="kpi good"><div class="label">&eta;<sub>total</sub></div>
+      <div class="value">${fmt(eta.total * 100, 1)}<span class="unit">%</span></div></div>
+    <div class="kpi"><div class="label">de-Haller w2/w1</div>
+      <div class="value">${fmt(L.deHaller, 2)}</div></div>
+  `;
+
+  // stacked horizontal bar of psi components
+  const total_psi = L.psi.psi_th + L.psi.skin + L.psi.diff + L.psi.inc + L.psi.volute;
+  const segs = [
+    { v: L.psi.psi_th,  c: '#1c5d99', label: 'ψ Nutz' },
+    { v: L.psi.skin,    c: '#c75b12', label: 'Reibung' },
+    { v: L.psi.diff,    c: '#e08530', label: 'Diffusion' },
+    { v: L.psi.inc,     c: '#a07050', label: 'Inzidenz' },
+    { v: L.psi.volute,  c: '#7a8b3a', label: 'Volute' },
+  ];
+  const W = 580, H = 36;
+  let x = 10;
+  let bars = '', legend = '';
+  segs.forEach((s, i) => {
+    const w = (W - 20) * s.v / total_psi;
+    bars += `<rect x="${x}" y="20" width="${w}" height="${H}" fill="${s.c}" />
+             <text class="svg-label" x="${x + w/2}" y="${20 + H/2 + 4}" text-anchor="middle" fill="#fff">${fmt(s.v / total_psi * 100, 0)}%</text>`;
+    x += w;
+    legend += `<g transform="translate(${10 + i*120}, 80)">
+                 <rect width="14" height="14" fill="${s.c}" />
+                 <text class="svg-label" x="20" y="11">${s.label}</text>
+               </g>`;
+  });
+  $('losses-svg').innerHTML = `
+    <text class="svg-label" x="10" y="14">Druckziffer-Bilanz &psi;<sub>th</sub> + &Sigma;&psi;<sub>Verlust</sub> = ${fmt(total_psi,2)}</text>
+    ${bars}
+    ${legend}
+  `;
+
+  $('losses-table').innerHTML = `
+    <table class="data">
+      <tr><th>Re (Schaufelkanal)</th><td>${fmt(L.Re_channel/1000, 0)} &times; 10&sup3;</td></tr>
+      <tr><th>Reibungsbeiwert c<sub>f</sub></th><td>${fmt(L.cf, 4)}</td></tr>
+      <tr><th>de-Haller-Kriterium w2/w1</th><td>${fmt(L.deHaller, 3)} ${L.deHaller >= 0.72 ? '(OK)' : '(grenzwertig, &lt; 0.72)'}</td></tr>
+      <tr><th>Spaltweite (Saugauge)</th><td>${fmt(L.parasitic.gap_m * 1000, 1)} mm</td></tr>
+      <tr><th>Spaltverlust-Volumenstrom</th><td>${fmt(L.parasitic.Q_leakage_m3s * 3600, 0)} m&sup3;/h</td></tr>
+      <tr><th>Radseitenreibung-Leistung</th><td>${fmtKw(L.parasitic.P_diskFriction_W)}</td></tr>
+      <tr><th>Wellenleistung (mit Verlustmodell)</th><td>${fmtKw(L.P_shaft_W)}</td></tr>
+    </table>
+  `;
+}
+
+// ---------- strength ----------
+function renderStrength(r, S) {
+  if (!S) return;
+  const cls = S.pass ? 'good' : 'bad';
+  const txt = S.pass ? 'BESTANDEN' : 'NICHT BESTANDEN';
+  $('strength-summary').innerHTML = `
+    <div class="kpi ${cls}"><div class="label">Sicherheits-Faktor SF</div>
+      <div class="value">${fmt(S.safetyFactor, 2)}</div></div>
+    <div class="kpi"><div class="label">Erforderlich SF<sub>min</sub></div>
+      <div class="value">${fmt(S.requiredSF, 2)}</div></div>
+    <div class="kpi"><div class="label">&sigma;<sub>max</sub></div>
+      <div class="value">${fmt(S.sigma_max_MPa, 0)}<span class="unit">N/mm&sup2;</span></div></div>
+    <div class="kpi"><div class="label">R<sub>p0.2</sub>(T)</div>
+      <div class="value">${fmt(S.Rp02_T_MPa, 0)}<span class="unit">N/mm&sup2;</span></div></div>
+    <div class="kpi ${cls}"><div class="label">Nachweis</div>
+      <div class="value">${txt}</div></div>
+  `;
+  $('strength-table').innerHTML = `
+    <table class="data">
+      <tr><th>Aussenradius R<sub>o</sub></th><td>${fmt(S.R_o_m * 1000, 0)} mm</td></tr>
+      <tr><th>Innenradius (Bohrung) R<sub>i</sub></th><td>${fmt(S.R_i_m * 1000, 0)} mm</td></tr>
+      <tr><th>Tangentialspannung &sigma;<sub>&theta;,max</sub></th><td>${fmt(S.sigma_theta_max_MPa, 0)} N/mm&sup2;</td></tr>
+      <tr><th>Radialspannung &sigma;<sub>r,max</sub></th><td>${fmt(S.sigma_radial_peak_MPa, 0)} N/mm&sup2;</td></tr>
+      <tr><th>Schaufel-Fliehkraftspannung</th><td>${fmt(S.sigma_blade_MPa, 0)} N/mm&sup2;</td></tr>
+      <tr><th>Thermische Spannung (&Delta;T = 30 K)</th><td>${fmt(S.sigma_thermal_MPa, 0)} N/mm&sup2;</td></tr>
+      <tr><th>Vergleichsspannung &sigma;<sub>v</sub></th><td>${fmt(S.sigma_max_MPa, 0)} N/mm&sup2;</td></tr>
+      <tr><th>Streckgrenze bei T</th><td>${fmt(S.Rp02_T_MPa, 0)} N/mm&sup2;</td></tr>
+    </table>
+  `;
+}
+
+// ---------- rotor dynamics ----------
+function renderRotor(r, R) {
+  if (!R) return;
+  const cls = R.pass ? 'good' : (R.ratio > 1.15 ? 'warn' : 'bad');
+  $('rotor-summary').innerHTML = `
+    <div class="kpi"><div class="label">Betriebsdrehzahl</div>
+      <div class="value">${fmt(R.n_op_rpm, 0)}<span class="unit">1/min</span></div></div>
+    <div class="kpi"><div class="label">n<sub>krit</sub> (1. biegekrit.)</div>
+      <div class="value">${fmt(R.n_crit_rpm, 0)}<span class="unit">1/min</span></div></div>
+    <div class="kpi ${cls}"><div class="label">n<sub>op</sub>/n<sub>krit</sub></div>
+      <div class="value">${fmt(R.ratio, 2)}</div></div>
+    <div class="kpi ${cls}"><div class="label">Lavalbereich</div>
+      <div class="value" style="font-size:13px">${R.regime}</div></div>
+  `;
+  $('rotor-table').innerHTML = `
+    <table class="data">
+      <tr><th>Wellenmoment T</th><td>${fmt(r.power.P_shaft_W / r.state.omega_rad_s, 0)} Nm</td></tr>
+      <tr><th>Wellendurchmesser d (gerundet)</th><td>${fmt(R.d_shaft_m * 1000, 0)} mm</td></tr>
+      <tr><th>Lagerabstand L</th><td>${fmt(R.L_span_m * 1000, 0)} mm</td></tr>
+      <tr><th>Laufrad-Masse</th><td>${fmt(R.impellerMass_kg, 0)} kg</td></tr>
+      <tr><th>Wellensteifigkeit k</th><td>${fmt(R.shaftStiffness_N_m / 1e6, 1)} MN/m</td></tr>
+    </table>
+  `;
+}
+
+// ---------- volute ----------
+function renderVolute(r, V) {
+  if (!V) return;
+  // Table
+  let rows = '';
+  V.sections.forEach((s) => {
+    rows += `<tr>
+      <td>${s.phi_deg}&deg;</td>
+      <td>${fmt(s.A_m2, 3)} m&sup2;</td>
+      <td>${fmt((s.r_outer_m - r.geometry.D2_m / 2) * 1000, 0)} mm</td>
+      <td>${fmt(s.r_outer_m * 1000, 0)} mm</td>
+    </tr>`;
+  });
+  $('volute-table').innerHTML = `
+    <table class="data">
+      <tr><th>Mittl. Geschw. c<sub>3</sub></th><td>${fmt(V.c_volute_m_s, 1)} m/s</td></tr>
+      <tr><th>Volutenbreite b<sub>v</sub></th><td>${fmt(V.width_b_v_m * 1000, 0)} mm</td></tr>
+      <tr><th>Zungenabstand</th><td>${fmt(V.tongueClearance_m * 1000, 0)} mm</td></tr>
+    </table>
+    <table class="data" style="margin-top:8px">
+      <tr><th>&phi;</th><th>A(&phi;)</th><th>&Delta;r</th><th>r<sub>aussen</sub></th></tr>
+      ${rows}
+    </table>
+  `;
+  // SVG: spiral with 8 radial markers
+  const R2 = 80;  // base scale
+  const maxR = R2 + (V.sections[V.sections.length - 1].r_outer_m - r.geometry.D2_m / 2) /
+                    (r.geometry.D2_m / 2) * R2;
+  const scale = 130 / maxR;
+  let spiral = '', markers = '';
+  // build interpolated spiral path (every 5 deg, linear in A)
+  let d = '';
+  for (let phi = 0; phi <= 360; phi += 5) {
+    const A_phi = (phi / 360) * r.inputs.Q / V.c_volute_m_s;
+    const r_outer = (r.geometry.D2_m / 2 + A_phi / V.width_b_v_m);
+    const radius = (r.geometry.D2_m / 2 + (r_outer - r.geometry.D2_m / 2)) * (R2 * 2 / r.geometry.D2_m);
+    // simpler: scale to fit
+    const rad = R2 + (r_outer - r.geometry.D2_m / 2) * (R2 / (r.geometry.D2_m / 2));
+    const a = (phi - 90) * Math.PI / 180;
+    const x = rad * Math.cos(a);
+    const y = rad * Math.sin(a);
+    d += (phi === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+  }
+  V.sections.forEach((s) => {
+    const rad = R2 + (s.r_outer_m - r.geometry.D2_m / 2) * (R2 / (r.geometry.D2_m / 2));
+    const a = (s.phi_deg - 90) * Math.PI / 180;
+    const x = rad * Math.cos(a);
+    const y = rad * Math.sin(a);
+    markers += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#c75b12" />
+                <text class="svg-label" x="${(x*1.08).toFixed(1)}" y="${(y*1.08+3).toFixed(1)}" text-anchor="middle">${s.phi_deg}&deg;</text>`;
+  });
+  $('volute-svg').innerHTML = `
+    <circle class="svg-impeller-fill" cx="0" cy="0" r="${R2}" />
+    <circle class="svg-impeller" cx="0" cy="0" r="${R2}" />
+    <path d="${d}" stroke="#1c5d99" stroke-width="2" fill="rgba(28,93,153,.06)"/>
+    ${markers}
+    <circle cx="0" cy="0" r="4" fill="#333"/>
+    <text class="svg-label" x="${R2 + 4}" y="-${R2 - 4}">D2</text>
+  `;
+}
+
 // ---------- materials ----------
 function renderMaterials(r) {
   const m = MATERIALS[r.materials.wheelMaterial];
@@ -318,11 +506,22 @@ function renderMaterials(r) {
 }
 
 // ---------- notes ----------
-function renderNotes(r) {
+function renderNotes(r, det) {
   const preset = CEMENT_PRESETS.find((p) => p.id === $('preset').value);
   const ul = $('notes');
   ul.innerHTML = '';
   const notes = [...(preset?.notes ?? [])];
+
+  // Detailed-analysis warnings
+  if (det && det.strength && !det.strength.pass) {
+    notes.push(`<strong style="color:var(--bad)">Festigkeit:</strong> SF = ${det.strength.safetyFactor.toFixed(2)} &lt; 1.5 &mdash; Wandstaerken erhoehen, Drehzahl reduzieren oder hoeherfesten Werkstoff waehlen.`);
+  }
+  if (det && det.rotorDyn && !det.rotorDyn.pass) {
+    notes.push(`<strong style="color:var(--bad)">Rotordynamik:</strong> Betriebsdrehzahl liegt im kritischen Bereich (${det.rotorDyn.regime}). Lagerabstand verkuerzen oder Wellendurchmesser erhoehen.`);
+  }
+  if (det && det.losses && det.losses.deHaller < 0.72) {
+    notes.push(`<strong style="color:var(--warn)">Aerodynamik:</strong> de-Haller-Kriterium w2/w1 = ${det.losses.deHaller.toFixed(2)} &lt; 0.72 &mdash; Gefahr der Stroemungsabloesung im Schaufelkanal. b2 erhoehen oder beta2 anpassen.`);
+  }
 
   // Add automatically generated warnings
   if (r.aerodynamics.eta_total < 0.7) {

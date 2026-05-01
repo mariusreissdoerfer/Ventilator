@@ -114,6 +114,33 @@
       </div>
 
       <div class="card">
+        <h2>Verlustaufteilung (1D-Stroemungsrechnung)</h2>
+        <div id="losses-summary" class="summary"></div>
+        <svg id="losses-svg" viewBox="0 0 600 120" aria-label="Verlustaufteilung"></svg>
+        <div id="losses-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>Festigkeitsnachweis Laufrad</h2>
+        <div id="strength-summary" class="summary"></div>
+        <div id="strength-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>Rotordynamik &mdash; biegekritische Drehzahl</h2>
+        <div id="rotor-summary" class="summary"></div>
+        <div id="rotor-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>Spiralgehaeuse (nach Stepanoff)</h2>
+        <div class="geom-row">
+          <div id="volute-table"></div>
+          <svg id="volute-svg" viewBox="-180 -180 360 360" aria-label="Spiralgehaeuse"></svg>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Werkstoff &amp; Verschleissschutz</h2>
         <div id="materials"></div>
       </div>
@@ -126,17 +153,27 @@
       <div class="card meta">
         <h2>Berechnungs-Grundlagen</h2>
         <p>
-          Auslegung nach Stroemungsmaschinen-Theorie:
-          Euler-Gleichung, Cordier-Diagramm, Slip-Faktor nach Wiesner /
-          Stodola, Pfleiderer-Schaufelzahl, Druckziffer &psi;,
-          Lieferziffer &phi;.  Anpassungen fuer die Zementindustrie
-          (Heissgas, Staubbeladung, Verschleiss) nach VDZ und
-          Herstellerunterlagen.
+          <strong>Aerodynamik:</strong> Euler-Gleichung, Cordier-Diagramm,
+          Slip-Faktor nach Wiesner / Stodola, Pfleiderer-Schaufelzahl,
+          Druck- und Lieferziffer &psi; / &phi;.<br>
+          <strong>1D-Verlustmodell:</strong> Reibung (Blasius), Diffusion
+          (de Haller), Inzidenz, Volutenverlust nach Pfleiderer,
+          Radseitenreibung nach Daily &amp; Nece, Spaltverlust am Saugauge.<br>
+          <strong>Festigkeitsnachweis:</strong> rotierende Scheibe mit
+          zentrischer Bohrung, Schaufel-Fliehkraftspannung, thermische
+          Ueberlagerung. Streckgrenze bei Betriebstemperatur, geforderter
+          Sicherheitsfaktor SF &ge; 1.5 (FKM-Richtlinie / AD 2000 W 13).<br>
+          <strong>Rotordynamik:</strong> Jeffcott-Modell, Welle als
+          Biegebalken, Laufrad als konzentrierte Masse mittig zwischen
+          den Lagern, Wellendurchmesser aus T<sub>Welle</sub>.<br>
+          <strong>Spiralgehaeuse:</strong> Stepanoff-Methode mit konstanter
+          mittlerer Volutengeschwindigkeit, 8 Querschnitte alle 45&deg;.
         </p>
         <p class="fineprint">
-          Vor-Auslegung. Eine ausgefuehrte Stroemungs- und
-          Festigkeitsrechnung (CFD / FEM) ist im Auftragsfall
-          verbindlich.
+          Detailauslegung mit 1D-Verlust- und Festigkeitsrechnung.
+          Eine 3D-CFD- bzw. FEM-Verifikation des Schaufelprofils und
+          der Schaufelfusspressungen sowie eine Modal- und
+          Dauerfestigkeitsrechnung sind vor Fertigung empfohlen.
         </p>
       </div>
 
@@ -149,6 +186,7 @@
   <script src="js/fan-design.js"></script>
   <script src="js/presets.js"></script>
   <script src="js/materials.js"></script>
+  <script src="js/detailed-design.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
