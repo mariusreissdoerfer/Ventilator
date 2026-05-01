@@ -84,6 +84,8 @@ function runCalc() {
   renderRotorFEM(res, ver.rotorFEM);
   renderDiskProfile(res, ver.diskProfile, det.strength);
   renderOffDesign(res, ver.offDesign);
+  renderFlowField(res);
+  renderStressField(ver.diskProfile);
   renderMaterials(res);
   renderNotes(res, det, ver);
 }
@@ -722,6 +724,200 @@ function renderOffDesign(r, M) {
           <text class="svg-label" x="${X(surge.Q_m3h) + 6}" y="${H - padB - 6}" fill="#b3261e">Surge</text>`;
 
   $('offdesign-svg').innerHTML = svg;
+}
+
+// ====================================================================
+// 2D FIELD VISUALISATIONS (jet colormap, derived from 1D physics)
+// ====================================================================
+
+// Standard "jet" colormap used in most engineering FEM/CFD post-processors.
+const JET_STOPS = [
+  [0.000,   0,   0, 143],
+  [0.125,   0,   0, 255],
+  [0.375,   0, 255, 255],
+  [0.625, 255, 255,   0],
+  [0.875, 255,   0,   0],
+  [1.000, 128,   0,   0],
+];
+
+function jetColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 0; i < JET_STOPS.length - 1; i++) {
+    if (t <= JET_STOPS[i + 1][0]) {
+      const lo = JET_STOPS[i], hi = JET_STOPS[i + 1];
+      const f = (t - lo[0]) / (hi[0] - lo[0]);
+      const r = Math.round(lo[1] + f * (hi[1] - lo[1]));
+      const g = Math.round(lo[2] + f * (hi[2] - lo[2]));
+      const b = Math.round(lo[3] + f * (hi[3] - lo[3]));
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  return 'rgb(128,0,0)';
+}
+
+function jetGradientStops() {
+  let s = '';
+  for (let i = 0; i <= 10; i++) {
+    s += `<stop offset="${(1 - i / 10).toFixed(2)}" stop-color="${jetColor(i / 10)}"/>`;
+  }
+  return s;
+}
+
+// ---------- 2D blade-to-blade flow field ----------
+function renderFlowField(r) {
+  const a = r.aerodynamics;
+  const g = r.geometry;
+  const Z = g.Z;
+  const beta1 = Math.max(15, Math.min(60, g.beta1_calc_deg));
+  const beta2 = g.beta2_deg;
+  const R2 = 150;
+  const R1 = R2 * (g.D1_m / g.D2_m);
+  const passageDeg = 360 / Z;
+
+  // Velocity range: w_min..w_max
+  const w1 = Math.hypot(a.cm1_m_s, a.u1_m_s);
+  const w2 = a.w2_m_s;
+  const w_lo = Math.min(w1, w2);
+  const w_hi = Math.max(w1, w2);
+  const span = Math.max(1, w_hi - w_lo);
+
+  // Build a logarithmic-spiral path on the impeller plane with
+  // angular offset offsetDeg. Returns the SVG d attribute and an array
+  // of sample points {x, y, t} along the path.
+  function spiralPath(offsetDeg, N) {
+    let theta = 0, prev_r = R1;
+    const samples = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const radius = R1 + t * (R2 - R1);
+      const beta = (beta1 + (beta2 - beta1) * t) * Math.PI / 180;
+      const dr = radius - prev_r;
+      if (i > 0 && Math.tan(beta) > 1e-3) {
+        theta += dr / (prev_r * Math.tan(beta));
+      }
+      prev_r = radius;
+      const a_rad = (offsetDeg * Math.PI / 180) - theta;
+      samples.push({ x: radius * Math.cos(a_rad), y: radius * Math.sin(a_rad), t, radius });
+    }
+    return samples;
+  }
+
+  // Two adjacent blade outlines (drawn in dark grey on top of streamlines)
+  const blade0 = spiralPath(0, 32);
+  const bladeP = spiralPath(passageDeg, 32);
+  const bladePath = (smp) => smp.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join('');
+
+  // Streamlines between the two blades, color-coded by w(r) along the path
+  let stream = '';
+  const numStream = 6;
+  for (let s = 1; s <= numStream; s++) {
+    const off = (s / (numStream + 1)) * passageDeg;
+    const samples = spiralPath(off, 36);
+    for (let i = 0; i < samples.length - 1; i++) {
+      // local relative velocity, linear interpolation between stations
+      const w_local = w1 + samples[i].t * (w2 - w1);
+      const tColor = (w_local - w_lo) / span;
+      const col = jetColor(tColor);
+      stream += `<line x1="${samples[i].x.toFixed(1)}" y1="${samples[i].y.toFixed(1)}" x2="${samples[i+1].x.toFixed(1)}" y2="${samples[i+1].y.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+    }
+    // Arrow head at outlet (radius = R2)
+    const last = samples[samples.length - 1];
+    const prev = samples[samples.length - 2];
+    const dx = last.x - prev.x, dy = last.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const px = -uy * 5, py = ux * 5;
+    const tipColor = jetColor((w2 - w_lo) / span);
+    stream += `<polygon points="${last.x.toFixed(1)},${last.y.toFixed(1)} ${(last.x - 8*ux + px).toFixed(1)},${(last.y - 8*uy + py).toFixed(1)} ${(last.x - 8*ux - px).toFixed(1)},${(last.y - 8*uy - py).toFixed(1)}" fill="${tipColor}"/>`;
+  }
+
+  // Outline circles for D1 and D2 (visual reference)
+  const refs = `
+    <circle cx="0" cy="0" r="${R2}" fill="none" stroke="#888" stroke-width="1" stroke-dasharray="3 3"/>
+    <circle cx="0" cy="0" r="${R1}" fill="none" stroke="#888" stroke-width="1" stroke-dasharray="3 3"/>
+    <circle cx="0" cy="0" r="3" fill="#333"/>
+  `;
+
+  // Inflow arrows in the eye (cm1 direction = radial outward at the eye)
+  let inflow = '';
+  for (let phi = 0; phi <= passageDeg; phi += passageDeg / 6) {
+    const phiR = phi * Math.PI / 180 - Math.PI / 2;
+    const x1 = (R1 - 20) * Math.cos(phiR), y1 = (R1 - 20) * Math.sin(phiR);
+    const x2 = (R1 - 4) * Math.cos(phiR), y2 = (R1 - 4) * Math.sin(phiR);
+    inflow += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${jetColor((w1 - w_lo) / span)}" stroke-width="1.5"/>`;
+  }
+
+  $('flowfield-svg').innerHTML = `
+    <defs>
+      <linearGradient id="cbarFlow" x1="0" y1="1" x2="0" y2="0">
+        ${jetGradientStops()}
+      </linearGradient>
+    </defs>
+    ${refs}
+    ${inflow}
+    ${stream}
+    <path d="${bladePath(blade0)}" stroke="#222" stroke-width="3" fill="none"/>
+    <path d="${bladePath(bladeP)}" stroke="#222" stroke-width="3" fill="none"/>
+    <text class="svg-label" x="0" y="-${R2 + 16}" text-anchor="middle">Schaufelkanal (Blade-to-Blade)</text>
+    <text class="svg-label" x="0" y="${R2 + 22}" text-anchor="middle">w&#x2081;=${fmt(w1, 0)} m/s &rarr; w&#x2082;=${fmt(w2, 0)} m/s</text>
+
+    <!-- Color bar -->
+    <rect x="${R2 + 30}" y="-100" width="18" height="200" fill="url(#cbarFlow)" stroke="#555"/>
+    <text class="svg-label" x="${R2 + 53}" y="-95">${fmt(w_hi, 0)}</text>
+    <text class="svg-label" x="${R2 + 53}" y="0">${fmt(0.5*(w_lo+w_hi), 0)}</text>
+    <text class="svg-label" x="${R2 + 53}" y="105">${fmt(w_lo, 0)}</text>
+    <text class="svg-label" x="${R2 + 53}" y="125">m/s</text>
+  `;
+}
+
+// ---------- 2D rotational stress field ----------
+function renderStressField(D) {
+  if (!D) return;
+  const R_o = 145;
+  const R_i = R_o * (D.R_i_m / D.R_o_m);
+  const s_max = Math.max(...D.points.map(p => p.sigma_v_MPa));
+  const s_min = Math.min(...D.points.map(p => p.sigma_v_MPa));
+  const span = Math.max(1, s_max - s_min);
+
+  // radialGradient stops at user-space coordinates
+  let stops = `<stop offset="0" stop-color="${jetColor((D.points[0].sigma_v_MPa - s_min) / span)}"/>`;
+  D.points.forEach((p) => {
+    const off = (R_i + (R_o - R_i) * p.r_norm) / R_o;
+    stops += `<stop offset="${off.toFixed(3)}" stop-color="${jetColor((p.sigma_v_MPa - s_min) / span)}"/>`;
+  });
+
+  // Bohrungs-Maske + zwei kleine Markierungen am Ort des Maximums
+  const peak_r_px = R_i + (R_o - R_i) * D.peak.r_norm;
+
+  $('stressfield-svg').innerHTML = `
+    <defs>
+      <radialGradient id="stressGrad" cx="0" cy="0" r="${R_o}" gradientUnits="userSpaceOnUse">
+        ${stops}
+      </radialGradient>
+      <linearGradient id="cbarStress" x1="0" y1="1" x2="0" y2="0">
+        ${jetGradientStops()}
+      </linearGradient>
+    </defs>
+
+    <!-- Disk -->
+    <circle cx="0" cy="0" r="${R_o}" fill="url(#stressGrad)" stroke="#222" stroke-width="1.5"/>
+    <!-- Bore -->
+    <circle cx="0" cy="0" r="${R_i}" fill="#fff" stroke="#222" stroke-width="1.5"/>
+
+    <!-- Peak-stress marker ring -->
+    <circle cx="0" cy="0" r="${peak_r_px}" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="2 3"/>
+
+    <text class="svg-label" x="0" y="-${R_o + 8}" text-anchor="middle">Laufrad-Querschnitt (rotationssymmetrisch)</text>
+    <text class="svg-label" x="0" y="${R_o + 18}" text-anchor="middle">D2=${fmt(D.R_o_m * 2 * 1000, 0)} mm, D_bohr=${fmt(D.R_i_m * 2 * 1000, 0)} mm</text>
+    <text class="svg-label" x="0" y="${R_o + 34}" text-anchor="middle">&sigma;<sub>v,max</sub> = ${fmt(s_max, 0)} N/mm&sup2; bei r/R<sub>o</sub> = ${fmt(D.peak.r_m / D.R_o_m, 2)}</text>
+
+    <!-- Color bar -->
+    <rect x="${R_o + 30}" y="-100" width="18" height="200" fill="url(#cbarStress)" stroke="#555"/>
+    <text class="svg-label" x="${R_o + 53}" y="-95">${fmt(s_max, 0)}</text>
+    <text class="svg-label" x="${R_o + 53}" y="0">${fmt(0.5*(s_min+s_max), 0)}</text>
+    <text class="svg-label" x="${R_o + 53}" y="105">${fmt(s_min, 0)}</text>
+    <text class="svg-label" x="${R_o + 53}" y="125">N/mm&sup2;</text>
+  `;
 }
 
 // ---------- materials ----------

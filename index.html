@@ -161,6 +161,18 @@
       </div>
 
       <div class="card">
+        <h2>2D-Stroemungsbild (Blade-to-Blade)</h2>
+        <p class="hint">Stromlinien im Schaufelkanal, eingefaerbt nach Relativgeschwindigkeit w. Berechnet aus Kontinuitaet und dem Geschwindigkeitsdreieck (1D-Mittelstromlinie mit Querverteilung). Keine 3D-Navier-Stokes-Loesung.</p>
+        <svg id="flowfield-svg" viewBox="-200 -200 420 400" aria-label="Stroemungsbild"></svg>
+      </div>
+
+      <div class="card">
+        <h2>2D-Spannungsfeld &sigma;<sub>v</sub>(r)</h2>
+        <p class="hint">Vergleichsspannung im Querschnitt der Laufradscheibe, eingefaerbt nach Mises. Direkt aus der geschlossenen Timoshenko/Goodier-Loesung &mdash; rotationssymmetrisch und damit ohne 3D-FEM-Diskretisierung exakt darstellbar.</p>
+        <svg id="stressfield-svg" viewBox="-180 -180 380 380" aria-label="Spannungsfeld"></svg>
+      </div>
+
+      <div class="card">
         <h2>Werkstoff &amp; Verschleissschutz</h2>
         <div id="materials"></div>
       </div>
