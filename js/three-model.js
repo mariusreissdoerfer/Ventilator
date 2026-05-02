@@ -56,13 +56,15 @@
     fill.position.set(-6, 4, -4);
     scene.add(fill);
 
-    // Subtle ground plane for depth
+    // Subtle ground plane for depth (radius and y get tuned per fan
+    // size in update()).
     const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(50, 48),
+      new THREE.CircleGeometry(1, 48),
       new THREE.MeshStandardMaterial({ color: 0xdadee5, roughness: 0.9 }),
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -2;
+    ground.position.y = -10;
+    ground.name = 'ground';
     scene.add(ground);
 
     // ResizeObserver keeps the canvas in sync with the parent card
@@ -261,15 +263,24 @@
     hub.position.y = b2 / 2;
     group.add(hub);
 
-    // Welle (shaft)
+    // Welle (shaft) - symmetric stub above and below the impeller so
+    // the rotor visually balances around its midplane. A long
+    // overhang would drag the centre-of-image away from the fan.
     const shaftR = Math.max(0.07 * D2 / 2, 0.04);
-    const shaftL = 1.2 * D2;
+    const shaftAbove = 0.25 * D2;
+    const shaftBelow = 0.25 * D2;
+    const shaftL = b2 + t_disk + t_shroud + shaftAbove + shaftBelow;
     const shaft = new THREE.Mesh(
       new THREE.CylinderGeometry(shaftR, shaftR, shaftL, 32),
       shaftMat,
     );
-    shaft.position.y = -shaftL / 2 - t_disk;
+    shaft.position.y = b2 / 2 + (t_shroud - t_disk) / 2;
     group.add(shaft);
+
+    // Recentre the whole assembly so the rotor midplane sits at y=0,
+    // independent of t_disk / t_shroud / b2 details.  This is what
+    // OrbitControls.target then locks onto.
+    group.position.y = -b2 / 2;
 
     return group;
   }
@@ -290,15 +301,21 @@
     t.scene.add(group);
     t.group = group;
 
-    // Camera position scaled to fan size
+    // Camera position scaled to fan size. Group origin is now at the
+    // rotor midplane (group.position.y = -b2/2), so target the origin.
     const D2 = r.geometry.D2_m;
-    t.camera.position.set(D2 * 1.4, D2 * 0.85, D2 * 1.4);
-    t.controls.target.set(0, r.geometry.b2_m / 2, 0);
+    t.camera.position.set(D2 * 1.3, D2 * 0.55, D2 * 1.3);
+    t.controls.target.set(0, 0, 0);
     t.controls.update();
 
-    // Move ground below the rotor
-    const ground = t.scene.children.find((c) => c.geometry && c.geometry.type === 'CircleGeometry');
-    if (ground) ground.position.y = -D2 * 0.9;
+    // Ground plane just under the lower shaft stub
+    const ground = t.scene.getObjectByName('ground');
+    if (ground) {
+      // Replace geometry with one sized to the fan; dispose old
+      ground.geometry.dispose();
+      ground.geometry = new THREE.CircleGeometry(D2 * 1.6, 48);
+      ground.position.y = -(0.25 * D2 + r.geometry.b2_m / 2 + 0.05);
+    }
   }
 
   window.ThreeModel = { update };
