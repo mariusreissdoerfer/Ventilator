@@ -24,6 +24,7 @@ const CEMENT_PRESETS = [
     dustLoading: 80,
     n_rpm: 990,
     bladeType: 'backward-curved',
+    arrangement: 'SISW',
     notes: [
       'Heissgasbetrieb 280-380 degC, Anbackungen durch Rohmehlstaub',
       'Schaufelprofile mit Verschleissauflagen (Hardox/Cr-Carbide)',
@@ -153,6 +154,44 @@ const CEMENT_PRESETS = [
     ],
   },
   {
+    id: 'kiln-id-didw',
+    name: 'Kiln ID-Ventilator (doppelflutig, 8000-10000 t/d)',
+    description:
+      'Doppelflutiger Hauptzugventilator fuer Grossanlagen. Beide Saugaugen ziehen aus dem Konditionierturm; Q_total wird auf zwei Laufradhaelften aufgeteilt -> kleinerer D2 oder geringerer u2 als bei einflutiger Bauart.',
+    Q_m3h: 1500000,
+    dp_total_Pa: 8500,
+    tempC: 340,
+    pressurePa: 99000,
+    dustLoading: 80,
+    n_rpm: 745,
+    bladeType: 'backward-curved',
+    arrangement: 'DIDW',
+    notes: [
+      'Axialschub durch Symmetrie ausgeglichen -> einfachere Lagerung',
+      'Doppelte Anzahl Wellendichtungen, Sperrlufteindeckung beidseitig',
+      'Spiralgehaeuse umfasst beide Halbradraeder, Eintrittskruemmer Y-foermig',
+      'Bei Grossanlagen ueber 7000 t/d Standard-Bauart',
+    ],
+  },
+  {
+    id: 'bag-filter-didw',
+    name: 'Schlauchfilter-Saugventilator (doppelflutig)',
+    description:
+      'Doppelflutige Bauart fuer sehr grosse Filterstroeme. Reingas-Bedingungen erlauben hochbeanspruchte Profilschaufelraeder mit hohem Wirkungsgrad.',
+    Q_m3h: 1400000,
+    dp_total_Pa: 3800,
+    tempC: 180,
+    pressurePa: 99000,
+    dustLoading: 0.05,
+    n_rpm: 745,
+    bladeType: 'backward-curved-airfoil',
+    arrangement: 'DIDW',
+    notes: [
+      'Reingas -> kein Verschleissschutz noetig',
+      'Sehr grosser Volumenstrom -> doppelflutig waehlt geringere Drehzahl',
+    ],
+  },
+  {
     id: 'custom',
     name: 'Custom (manuelle Eingabe)',
     description: 'Freie Eingabe aller Parameter. Keine Vorbelegung.',
@@ -163,6 +202,7 @@ const CEMENT_PRESETS = [
     dustLoading: 0,
     n_rpm: 1485,
     bladeType: 'auto',
+    arrangement: 'SISW',
     notes: [],
   },
 ];

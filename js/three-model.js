@@ -201,11 +201,13 @@
 
     const D2 = r.geometry.D2_m;
     const D1 = r.geometry.D1_m;
-    const b2 = r.geometry.b2_m;
+    const b2 = r.geometry.b2_m;        // per impeller side
     const Z  = r.geometry.Z;
     const beta1 = Math.max(15, Math.min(60, r.geometry.beta1_calc_deg));
     const beta2 = r.geometry.beta2_deg;
     const isForward = r.aerodynamics.bladeType === 'forward-curved';
+    const arrangement = r.geometry.arrangement || 'SISW';
+    const isDIDW = arrangement === 'DIDW';
 
     const R_o = D2 / 2, R_i = D1 / 2;
     const t_disk   = 0.012 * D2;
@@ -225,6 +227,73 @@
       color: 0x55606e, metalness: 0.6, roughness: 0.5,
     });
 
+    // Build a single shroud mesh (annulus with eye hole, extruded).
+    function buildShroud() {
+      const shape = new THREE.Shape();
+      shape.absarc(0, 0, R_o, 0, Math.PI * 2, false);
+      const eye = new THREE.Path();
+      eye.absarc(0, 0, R_i, 0, Math.PI * 2, true);
+      shape.holes.push(eye);
+      const geom = new THREE.ExtrudeGeometry(shape, { depth: t_shroud, bevelEnabled: false });
+      geom.rotateX(-Math.PI / 2);
+      return new THREE.Mesh(geom, steel);
+    }
+
+    if (isDIDW) {
+      // ---- DIDW: two impeller halves sharing a thicker centre back disk
+      // Centre back disk (slightly thicker -> 1.5 t_disk for stiffness)
+      const tCenter = 1.5 * t_disk;
+      const centreBack = new THREE.Mesh(
+        new THREE.CylinderGeometry(R_o, R_o, tCenter, 96),
+        steel,
+      );
+      centreBack.position.y = 0;
+      group.add(centreBack);
+
+      // Two sides, mirrored across y=0
+      [+1, -1].forEach((side) => {
+        // Blades: lower y of blade region for this side
+        const yBladeBase = side > 0 ? tCenter / 2 : -tCenter / 2 - b2;
+        for (let bi = 0; bi < Z; bi++) {
+          const offset = (2 * Math.PI / Z) * bi;
+          const blade = buildBlade(R_i, R_o, beta1, beta2, b2, offset, isForward, t_blade, bladeMat);
+          blade.position.y = yBladeBase;
+          group.add(blade);
+        }
+        // Shroud: outer y face of this side
+        const shroud = buildShroud();
+        shroud.position.y = side > 0
+          ? tCenter / 2 + b2
+          : -tCenter / 2 - b2 - t_shroud;
+        group.add(shroud);
+      });
+
+      // Hub through whole assembly
+      const totalH = tCenter + 2 * (b2 + t_shroud);
+      const hubR = Math.max(R_i * 0.35, 0.04);
+      const hub = new THREE.Mesh(
+        new THREE.CylinderGeometry(hubR, hubR, totalH, 32),
+        hubMat,
+      );
+      hub.position.y = 0;
+      group.add(hub);
+
+      // Symmetric shaft stubs
+      const shaftR = Math.max(0.07 * D2 / 2, 0.04);
+      const stub = 0.25 * D2;
+      const shaftL = totalH + 2 * stub;
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(shaftR, shaftR, shaftL, 32),
+        shaftMat,
+      );
+      shaft.position.y = 0;
+      group.add(shaft);
+
+      // Group already centred at y=0; do nothing
+      return group;
+    }
+
+    // ---- SISW: original single-flow construction
     // Tragscheibe (back disk)
     const back = new THREE.Mesh(
       new THREE.CylinderGeometry(R_o, R_o, t_disk, 96),
@@ -234,16 +303,7 @@
     group.add(back);
 
     // Deckscheibe (front shroud, with eye hole)
-    const shroudShape = new THREE.Shape();
-    shroudShape.absarc(0, 0, R_o, 0, Math.PI * 2, false);
-    const eyeHole = new THREE.Path();
-    eyeHole.absarc(0, 0, R_i, 0, Math.PI * 2, true);
-    shroudShape.holes.push(eyeHole);
-    const shroudGeom = new THREE.ExtrudeGeometry(shroudShape, {
-      depth: t_shroud, bevelEnabled: false,
-    });
-    shroudGeom.rotateX(-Math.PI / 2);
-    const shroud = new THREE.Mesh(shroudGeom, steel);
+    const shroud = buildShroud();
     shroud.position.y = b2;
     group.add(shroud);
 
@@ -301,20 +361,29 @@
     t.scene.add(group);
     t.group = group;
 
-    // Camera position scaled to fan size. Group origin is now at the
-    // rotor midplane (group.position.y = -b2/2), so target the origin.
+    // Camera position scaled to fan size. Group origin is at the rotor
+    // midplane (y = 0 in both arrangements), so target the origin.
     const D2 = r.geometry.D2_m;
-    t.camera.position.set(D2 * 1.3, D2 * 0.55, D2 * 1.3);
+    const isDIDW = (r.geometry.arrangement === 'DIDW');
+    // DIDW is wider axially -> pull the camera back a bit and lower
+    // the elevation so the whole rotor still fits.
+    const camR = isDIDW ? D2 * 1.55 : D2 * 1.3;
+    const camY = isDIDW ? D2 * 0.45 : D2 * 0.55;
+    t.camera.position.set(camR, camY, camR);
     t.controls.target.set(0, 0, 0);
     t.controls.update();
 
-    // Ground plane just under the lower shaft stub
+    // Ground plane just under the lower shaft stub. For DIDW the
+    // assembly is symmetric around y=0; place the ground below the
+    // impeller's lower extent.
     const ground = t.scene.getObjectByName('ground');
     if (ground) {
-      // Replace geometry with one sized to the fan; dispose old
       ground.geometry.dispose();
       ground.geometry = new THREE.CircleGeometry(D2 * 1.6, 48);
-      ground.position.y = -(0.25 * D2 + r.geometry.b2_m / 2 + 0.05);
+      const halfAxial = isDIDW
+        ? r.geometry.axialExtent_m / 2
+        : r.geometry.b2_m / 2;
+      ground.position.y = -(0.25 * D2 + halfAxial + 0.05);
     }
   }
 

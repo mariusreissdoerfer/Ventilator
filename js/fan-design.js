@@ -241,8 +241,17 @@ function recommendWheelMaterial({ tempC, dustLoading_g_m3, requiredU2 }) {
  * Returns a result object with all geometry, performance and material data.
  */
 function sizeFan(inp) {
+  // ---- 0) Arrangement (single- vs double-flow) ------------------------
+  // SISW = Single Inlet, Single Width (einflutig)
+  // DIDW = Double Inlet, Double Width (doppelflutig) - two impellers
+  // back-to-back on one shaft, common discharge volute. Each side
+  // handles Q/2 at the same pressure.
+  const arrangement = inp.arrangement === 'DIDW' ? 'DIDW' : 'SISW';
+  const numFlows   = arrangement === 'DIDW' ? 2 : 1;
+
   // ---- 1) Process state ------------------------------------------------
   const Q = inp.Q_m3h / 3600;                                  // m^3/s
+  const Q_per_side = Q / numFlows;                             // m^3/s per impeller side
   const dp = inp.dp_total_Pa;                                  // Pa
   const rho = inletDensity({
     tempC: inp.tempC,
@@ -255,11 +264,11 @@ function sizeFan(inp) {
   const n = inp.n_rpm / 60;                                    // 1/s
 
   // ---- 2) Dimensionless similarity (Cordier) --------------------------
-  // sigma = omega * sqrt(Q) / (2 Y)^(3/4)
-  const sigma = omega * Math.sqrt(Q) / Math.pow(2 * Y, 0.75);
+  // For a DIDW fan the similarity is taken per side - each impeller
+  // half operates like a single-inlet fan handling Q/2.
+  const sigma = omega * Math.sqrt(Q_per_side) / Math.pow(2 * Y, 0.75);
   const delta = cordierDelta(sigma);
-  // Recommended outer diameter from Cordier
-  const D2_cordier = delta * Math.sqrt(Q) / Math.pow(2 * Y, 0.25);
+  const D2_cordier = delta * Math.sqrt(Q_per_side) / Math.pow(2 * Y, 0.25);
 
   // ---- 3) Blade type -------------------------------------------------
   const bladeType = (inp.bladeType && inp.bladeType !== 'auto')
@@ -286,8 +295,10 @@ function sizeFan(inp) {
   const D2 = u2 / (Math.PI * n);
 
   // ---- 6) Inlet eye geometry -----------------------------------------
-  // Optimum hub/tip ratio for radial fan ~ 0.55..0.65 (Bommes)
-  const D1_over_D2 = 0.62;
+  // Optimum hub/tip ratio for radial fan ~ 0.55..0.65 (Bommes).
+  // DIDW: each side passes Q/2 -> for the same meridional inlet
+  // velocity the eye diameter shrinks by ~sqrt(2) -> 0.62/sqrt(2)~0.44.
+  const D1_over_D2 = arrangement === 'DIDW' ? 0.45 : 0.62;
   const D1 = D1_over_D2 * D2;
   const u1 = Math.PI * D1 * n;
 
@@ -311,14 +322,20 @@ function sizeFan(inp) {
   const w2 = Math.sqrt(cm2 * cm2 + Math.pow(u2 - cu2, 2));
 
   // ---- 9) Outlet width b2 from continuity ----------------------------
-  // Q = pi * D2 * b2 * cm2 * tau   ; tau = blade blockage 0.92..0.96
+  // Q_side = pi * D2 * b2 * cm2 * tau, b2 is the blade width on ONE
+  // side. For DIDW the total axial extent of the impeller is
+  // 2 * b2 + 2 * t_shroud + t_disk_center (back-to-back arrangement).
   const tau = 0.94;
-  const b2 = Q / (Math.PI * D2 * cm2 * tau);
+  const b2 = Q_per_side / (Math.PI * D2 * cm2 * tau);
+  const t_disk_est   = 0.012 * D2;
+  const t_shroud_est = 0.012 * D2;
+  const axialExtent  = (numFlows === 2)
+    ? 2 * b2 + 2 * t_shroud_est + t_disk_est
+    : b2 + t_disk_est + t_shroud_est;
 
   // ---- 10) Inlet vane angle beta1 from velocity triangle -------------
-  // Assume axial inlet (no pre-swirl): cu1 = 0  ->  tan(beta1) = cm1/u1
-  // Continuity: Q = pi/4 * D1^2 * cm1   (eye)
-  const cm1 = 4 * Q / (Math.PI * D1 * D1);
+  // Each side has eye area pi/4 D1^2 carrying Q/2.
+  const cm1 = 4 * Q_per_side / (Math.PI * D1 * D1);
   const beta1_calc = Math.atan2(cm1, u1) * 180 / Math.PI;
 
   // ---- 11) Power & efficiency ----------------------------------------
@@ -377,8 +394,12 @@ function sizeFan(inp) {
       D2_m: D2,
       D2_cordier_m: D2_cordier,
       D1_m: D1,
-      b2_m: b2,
-      Z,
+      b2_m: b2,                         // per impeller side
+      axialExtent_m: axialExtent,        // total axial impeller width
+      Z,                                 // blades per side
+      Z_total: numFlows * Z,             // total blade count
+      arrangement,
+      numFlows,
       beta1_deg: beta1,
       beta1_calc_deg: beta1_calc,
       beta2_deg: beta2,

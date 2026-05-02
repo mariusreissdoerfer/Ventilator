@@ -90,15 +90,18 @@ function lossModel(r) {
   const psi_volute = 0.18 * Math.pow(a.c2_m_s / u2, 2);
 
   // ---- (e) disk friction (Daily & Nece) ------------------------------
-  // P_df = K_df · ρ · ω³ · (D2/2)^5
+  // P_df = K_df · ρ · ω³ · (D2/2)^5  per rotating disk.
+  // DIDW has two impeller halves -> two disk-friction contributions.
   const Re_d  = u2 * (D2 / 2) / nu;
   const Kdf   = 0.102 / Math.pow(Math.max(1e5, Re_d), 0.2);  // Daily-Nece IV
-  const P_df  = Kdf * rho * Math.pow(omega, 3) * Math.pow(D2 / 2, 5);
+  const numFlows = r.geometry.numFlows || 1;
+  const P_df  = numFlows * Kdf * rho * Math.pow(omega, 3) * Math.pow(D2 / 2, 5);
 
   // ---- (f) leakage at the shroud / seal gap --------------------------
-  // Tip clearance ~ 0.001 + 0.0008 D2 m  (typical industrial fan)
+  // Tip clearance ~ 0.001 + 0.0008 D2 m  (typical industrial fan).
+  // DIDW has a seal on each side -> leakage area doubled.
   const s_gap = 0.001 + 0.0008 * D2;
-  const A_lk  = Math.PI * D1 * s_gap;       // suction-eye seal area
+  const A_lk  = numFlows * Math.PI * D1 * s_gap;
   const dp    = r.inputs.dp;                 // total pressure rise (Pa)
   const c_lk  = 0.65 * Math.sqrt(2 * dp / rho); // discharge coeff 0.65
   const Q_lk  = A_lk * c_lk;
@@ -243,17 +246,22 @@ function criticalSpeed(r, materialKey) {
   const d_round  = Math.ceil(d_shaft * 100) / 100;
 
   // ---- impeller mass (realistic, not solid cylinder) ----------------
-  // Two cover plates of thickness t_d ≈ 0.012 · D2 plus Z blades of
-  // thickness t_b ≈ 0.005 · D2 spanning R_o − R_i_blade.  Hub, bolts,
-  // shrouding, fillets add ~ 40 %.
+  // SISW: 2 cover plates of t_disk ≈ 0.012 D2 + Z blades of t_blade ≈
+  //       0.005 D2 spanning R_o - R_i_blade.
+  // DIDW: 2 front shrouds + 1 thicker centre back disk + 2*Z blades.
+  // Hub, bolts, fillets add ~ 40 %.
   const R_o    = r.geometry.D2_m / 2;
-  const R_b_in = r.geometry.D1_m / 2;          // blade root radius
+  const R_b_in = r.geometry.D1_m / 2;
   const b2     = r.geometry.b2_m;
   const t_disk = 0.012 * r.geometry.D2_m;
   const t_blade = 0.005 * r.geometry.D2_m;
-  const m_disks  = 2 * Math.PI * R_o * R_o * t_disk * m.density;
-  const m_blades = r.geometry.Z * b2 *
-                   Math.max(0, R_o - R_b_in) * t_blade * m.density;
+  const numFlows  = r.geometry.numFlows || 1;
+  const Z_total   = r.geometry.Z_total || r.geometry.Z;
+  // SISW: 2 disks; DIDW: 3 disks (2 front shrouds + thicker centre back)
+  const numDisks  = (numFlows === 2) ? 3 : 2;
+  const m_disks   = numDisks * Math.PI * R_o * R_o * t_disk * m.density;
+  const m_blades  = Z_total * b2 *
+                    Math.max(0, R_o - R_b_in) * t_blade * m.density;
   const m_imp = 1.4 * (m_disks + m_blades);
 
   // ---- bearing layout ----------------------------------------------

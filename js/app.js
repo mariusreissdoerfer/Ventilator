@@ -33,6 +33,7 @@ function applyPreset(id) {
   $('dust').value = p.dustLoading;
   $('n').value = p.n_rpm;
   $('bladeType').value = p.bladeType;
+  if ($('arrangement')) $('arrangement').value = p.arrangement || 'SISW';
 }
 
 // ---------- formatting helpers ----------
@@ -53,6 +54,7 @@ function runCalc() {
     n_rpm: +$('n').value,
     bladeType: $('bladeType').value,
     slipModel: $('slipModel').value,
+    arrangement: $('arrangement') ? $('arrangement').value : 'SISW',
   };
   let res;
   try {
@@ -121,15 +123,25 @@ function renderSummary(r) {
 
 // ---------- geometry table + sketch ----------
 function renderGeometry(r) {
+  const isDIDW = r.geometry.arrangement === 'DIDW';
+  const arrLabel = isDIDW ? 'Doppelflutig (DIDW)' : 'Einflutig (SISW)';
+  const b2Label = isDIDW ? 'Schaufelbreite b2 (pro Saugseite)' : 'Schaufelaustrittsbreite b2';
+  const zLabel = isDIDW ? 'Schaufelzahl Z (pro Seite / gesamt)' : 'Schaufelzahl Z';
+  const zVal = isDIDW ? `${r.geometry.Z} / ${r.geometry.Z_total}` : `${r.geometry.Z}`;
+  const axialRow = isDIDW
+    ? `<tr><th>Axiale Laufradbreite (gesamt)</th><td>${fmtMm(r.geometry.axialExtent_m)}</td></tr>`
+    : '';
   $('geom-table').innerHTML = `
     <table class="data">
+      <tr><th>Bauart</th><td>${arrLabel}</td></tr>
       <tr><th>Schaufelform</th><td>${r.aerodynamics.bladeTypeLabel}</td></tr>
       <tr><th>Aussendurchmesser D2</th><td>${fmtMm(r.geometry.D2_m)}</td></tr>
       <tr><th>Saugaugen-&empty; D1</th><td>${fmtMm(r.geometry.D1_m)}</td></tr>
-      <tr><th>Schaufelaustrittsbreite b2</th><td>${fmtMm(r.geometry.b2_m)}</td></tr>
+      <tr><th>${b2Label}</th><td>${fmtMm(r.geometry.b2_m)}</td></tr>
+      ${axialRow}
       <tr><th>Eintrittswinkel &beta;1</th><td>${fmt(r.geometry.beta1_calc_deg, 1)}&deg;</td></tr>
       <tr><th>Austrittswinkel &beta;2</th><td>${fmt(r.geometry.beta2_deg, 1)}&deg;</td></tr>
-      <tr><th>Schaufelzahl Z</th><td>${r.geometry.Z}</td></tr>
+      <tr><th>${zLabel}</th><td>${zVal}</td></tr>
       <tr><th>Druckziffer &psi;</th><td>${fmt(r.aerodynamics.psi, 2)}</td></tr>
       <tr><th>Lieferziffer &phi;</th><td>${fmt(r.aerodynamics.phi, 3)}</td></tr>
       <tr><th>Slip-Faktor</th><td>${fmt(r.aerodynamics.slipFactor, 3)}</td></tr>
@@ -1063,7 +1075,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Live recalc on every input change so mobile users don't have to scroll
   // back to the button after every tweak.
-  ['Q', 'dp', 'T', 'p', 'dust', 'n', 'bladeType', 'slipModel'].forEach((id) => {
+  ['Q', 'dp', 'T', 'p', 'dust', 'n', 'bladeType', 'slipModel', 'arrangement'].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener('input', scheduleCalc);
