@@ -82,6 +82,59 @@ html, body {
 @media (min-width: 900px) {
   .card { padding: 18px 20px; margin-bottom: 16px; }
 }
+
+/* ---------- collapsible result sections ---------- */
+.section {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.section-head {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.section-head::-webkit-details-marker { display: none; }
+.section-head::before {
+  content: "";
+  flex: none;
+  width: 0; height: 0;
+  border-left: 7px solid var(--primary);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transition: transform .15s ease;
+}
+.section[open] > .section-head {
+  border-bottom: 1px solid var(--border);
+}
+.section[open] > .section-head::before {
+  transform: rotate(90deg);
+}
+@media (hover: hover) {
+  .section-head:hover { background: #e7eaee; }
+}
+/* cards inside a section are flattened: no own border/shadow/radius */
+.section > .card {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0;
+}
+.section > .card + .card {
+  border-top: 1px solid var(--border);
+}
 .card h2 {
   font-size: 13px;
   text-transform: uppercase;

@@ -99,145 +99,151 @@
 
     <!-- ============== RESULTS ============== -->
     <section class="results" id="results" role="tabpanel" aria-labelledby="tab-results">
-      <div class="card">
-        <h2>Auslegungsergebnis</h2>
-        <div id="summary" class="summary"></div>
-      </div>
 
-      <div class="card">
-        <h2>Geometrie</h2>
-        <div class="geom-row">
-          <div id="geom-table"></div>
-          <svg id="geom-svg" viewBox="-180 -180 360 360" aria-label="Laufradgeometrie"></svg>
+      <details class="section" open>
+        <summary class="section-head">Ergebnis-Ueberblick</summary>
+        <div class="card">
+          <h2>Auslegungsergebnis</h2>
+          <div id="summary" class="summary"></div>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>Geschwindigkeitsdreieck (Austritt)</h2>
-        <svg id="vt-svg" viewBox="-20 -20 320 200" aria-label="Geschwindigkeitsdreieck"></svg>
-        <div id="vt-table"></div>
-      </div>
-
-      <div class="card">
-        <h2>Kennlinie</h2>
-        <svg id="curve-svg" viewBox="0 0 600 320" aria-label="Kennlinie"></svg>
-      </div>
-
-      <div class="card">
-        <h2>Verlustaufteilung (1D-Stroemungsrechnung)</h2>
-        <div id="losses-summary" class="summary"></div>
-        <svg id="losses-svg" viewBox="0 0 600 120" aria-label="Verlustaufteilung"></svg>
-        <div id="losses-table"></div>
-      </div>
-
-      <div class="card">
-        <h2>Festigkeitsnachweis Laufrad</h2>
-        <div id="strength-summary" class="summary"></div>
-        <div id="strength-table"></div>
-      </div>
-
-      <div class="card">
-        <h2>Rotordynamik &mdash; biegekritische Drehzahl</h2>
-        <div id="rotor-summary" class="summary"></div>
-        <div id="rotor-table"></div>
-      </div>
-
-      <div class="card">
-        <h2>Spiralgehaeuse (nach Stepanoff)</h2>
-        <div class="geom-row">
-          <div id="volute-table"></div>
-          <svg id="volute-svg" viewBox="-180 -180 360 360" aria-label="Spiralgehaeuse"></svg>
+        <div class="card">
+          <h2>Hinweise</h2>
+          <ul id="notes"></ul>
         </div>
-      </div>
+      </details>
 
-      <div class="card">
-        <h2>Verifikation &mdash; Rotor-FEM (Transfer-Matrix)</h2>
-        <div id="rotorfem-summary" class="summary"></div>
-        <svg id="campbell-svg" viewBox="0 0 600 320" aria-label="Campbell-Diagramm"></svg>
-        <div id="modeshape-table"></div>
-        <svg id="modeshape-svg" viewBox="0 0 600 200" aria-label="Modenformen"></svg>
-      </div>
+      <details class="section">
+        <summary class="section-head">Aerodynamik &amp; Kennfeld</summary>
+        <div class="card">
+          <h2>Geometrie</h2>
+          <div class="geom-row">
+            <div id="geom-table"></div>
+            <svg id="geom-svg" viewBox="-180 -180 360 360" aria-label="Laufradgeometrie"></svg>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Geschwindigkeitsdreieck (Austritt)</h2>
+          <svg id="vt-svg" viewBox="-20 -20 320 200" aria-label="Geschwindigkeitsdreieck"></svg>
+          <div id="vt-table"></div>
+        </div>
+        <div class="card">
+          <h2>Kennlinie</h2>
+          <svg id="curve-svg" viewBox="0 0 600 320" aria-label="Kennlinie"></svg>
+        </div>
+        <div class="card">
+          <h2>Verlustaufteilung (1D-Stroemungsrechnung)</h2>
+          <div id="losses-summary" class="summary"></div>
+          <svg id="losses-svg" viewBox="0 0 600 120" aria-label="Verlustaufteilung"></svg>
+          <div id="losses-table"></div>
+        </div>
+        <div class="card">
+          <h2>Off-Design-Kennfeld</h2>
+          <div id="offdesign-summary" class="summary"></div>
+          <svg id="offdesign-svg" viewBox="0 0 600 360" aria-label="Off-Design-Kennfeld"></svg>
+        </div>
+      </details>
 
-      <div class="card">
-        <h2>Verifikation &mdash; Spannungsverteilung &sigma;(r)</h2>
-        <div id="diskprofile-summary" class="summary"></div>
-        <svg id="diskprofile-svg" viewBox="0 0 600 280" aria-label="Spannungsverlauf"></svg>
-      </div>
+      <details class="section">
+        <summary class="section-head">Festigkeit &amp; Rotordynamik</summary>
+        <div class="card">
+          <h2>Festigkeitsnachweis Laufrad</h2>
+          <div id="strength-summary" class="summary"></div>
+          <div id="strength-table"></div>
+        </div>
+        <div class="card">
+          <h2>Spannungsverteilung &sigma;(r)</h2>
+          <div id="diskprofile-summary" class="summary"></div>
+          <svg id="diskprofile-svg" viewBox="0 0 600 280" aria-label="Spannungsverlauf"></svg>
+        </div>
+        <div class="card">
+          <h2>Rotordynamik &mdash; biegekritische Drehzahl (1D)</h2>
+          <div id="rotor-summary" class="summary"></div>
+          <div id="rotor-table"></div>
+        </div>
+        <div class="card">
+          <h2>Rotor-FEM (3-DOF Mehrfreiheitsgrad)</h2>
+          <div id="rotorfem-summary" class="summary"></div>
+          <svg id="campbell-svg" viewBox="0 0 600 320" aria-label="Campbell-Diagramm"></svg>
+          <div id="modeshape-table"></div>
+          <svg id="modeshape-svg" viewBox="0 0 600 200" aria-label="Modenformen"></svg>
+        </div>
+      </details>
 
-      <div class="card">
-        <h2>Verifikation &mdash; Off-Design-Kennfeld</h2>
-        <div id="offdesign-summary" class="summary"></div>
-        <svg id="offdesign-svg" viewBox="0 0 600 360" aria-label="Off-Design-Kennfeld"></svg>
-      </div>
+      <details class="section">
+        <summary class="section-head">Konstruktion &amp; Werkstoff</summary>
+        <div class="card">
+          <h2>Spiralgehaeuse (nach Stepanoff)</h2>
+          <div class="geom-row">
+            <div id="volute-table"></div>
+            <svg id="volute-svg" viewBox="-180 -180 360 360" aria-label="Spiralgehaeuse"></svg>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Werkstoff &amp; Verschleissschutz</h2>
+          <div id="materials"></div>
+        </div>
+      </details>
 
-      <div class="card">
-        <h2>2D-Stroemungsbild (Blade-to-Blade)</h2>
-        <p class="hint">Stromlinien im Schaufelkanal, eingefaerbt nach Relativgeschwindigkeit w. Berechnet aus Kontinuitaet und dem Geschwindigkeitsdreieck (1D-Mittelstromlinie mit Querverteilung). Keine 3D-Navier-Stokes-Loesung.</p>
-        <svg id="flowfield-svg" viewBox="-200 -200 480 400" aria-label="Stroemungsbild"></svg>
-      </div>
+      <details class="section">
+        <summary class="section-head">Visualisierung (2D / 3D)</summary>
+        <div class="card">
+          <h2>3D-Modell des Ventilators</h2>
+          <p class="hint">Prozedurale Geometrie aus den Auslegungs-Parametern: Z Schaufeln als logarithmische Spirale, Trag- und Deckscheibe, Nabe und Welle. Drehen mit einem Finger / Maus, Zoom per Pinch / Scrollrad.</p>
+          <div id="three-container" class="three-container"></div>
+        </div>
+        <div class="card">
+          <h2>2D-Stroemungsbild (Blade-to-Blade)</h2>
+          <p class="hint">Stromlinien im Schaufelkanal, eingefaerbt nach Relativgeschwindigkeit w. Berechnet aus Kontinuitaet und dem Geschwindigkeitsdreieck (1D-Mittelstromlinie mit Querverteilung). Keine 3D-Navier-Stokes-Loesung.</p>
+          <svg id="flowfield-svg" viewBox="-200 -200 480 400" aria-label="Stroemungsbild"></svg>
+        </div>
+        <div class="card">
+          <h2>2D-Spannungsfeld &sigma;<sub>v</sub>(r)</h2>
+          <p class="hint">Vergleichsspannung im Querschnitt der Laufradscheibe, eingefaerbt nach Mises. Direkt aus der geschlossenen Timoshenko/Goodier-Loesung &mdash; rotationssymmetrisch und damit ohne 3D-FEM-Diskretisierung exakt darstellbar.</p>
+          <svg id="stressfield-svg" viewBox="-180 -180 460 380" aria-label="Spannungsfeld"></svg>
+        </div>
+      </details>
 
-      <div class="card">
-        <h2>2D-Spannungsfeld &sigma;<sub>v</sub>(r)</h2>
-        <p class="hint">Vergleichsspannung im Querschnitt der Laufradscheibe, eingefaerbt nach Mises. Direkt aus der geschlossenen Timoshenko/Goodier-Loesung &mdash; rotationssymmetrisch und damit ohne 3D-FEM-Diskretisierung exakt darstellbar.</p>
-        <svg id="stressfield-svg" viewBox="-180 -180 460 380" aria-label="Spannungsfeld"></svg>
-      </div>
-
-      <div class="card">
-        <h2>3D-Modell des Ventilators</h2>
-        <p class="hint">Prozedurale Geometrie aus den Auslegungs-Parametern: Z Schaufeln als logarithmische Spirale, Trag- und Deckscheibe, Nabe und Welle. Drehen mit einem Finger / Maus, Zoom per Pinch / Scrollrad.</p>
-        <div id="three-container" class="three-container"></div>
-      </div>
-
-      <div class="card">
-        <h2>Werkstoff &amp; Verschleissschutz</h2>
-        <div id="materials"></div>
-      </div>
-
-      <div class="card">
-        <h2>Hinweise</h2>
-        <ul id="notes"></ul>
-      </div>
-
-      <div class="card meta">
-        <h2>Berechnungs-Grundlagen</h2>
-        <p>
-          <strong>Aerodynamik:</strong> Euler-Gleichung, Cordier-Diagramm,
-          Slip-Faktor nach Wiesner / Stodola, Pfleiderer-Schaufelzahl,
-          Druck- und Lieferziffer &psi; / &phi;.<br>
-          <strong>1D-Verlustmodell:</strong> Reibung (Blasius), Diffusion
-          (de Haller), Inzidenz, Volutenverlust nach Pfleiderer,
-          Radseitenreibung nach Daily &amp; Nece, Spaltverlust am Saugauge.<br>
-          <strong>Festigkeitsnachweis:</strong> rotierende Scheibe mit
-          zentrischer Bohrung, Schaufel-Fliehkraftspannung, thermische
-          Ueberlagerung. Streckgrenze bei Betriebstemperatur, geforderter
-          Sicherheitsfaktor SF &ge; 1.5 (FKM-Richtlinie / AD 2000 W 13).<br>
-          <strong>Rotordynamik:</strong> Jeffcott-Modell, Welle als
-          Biegebalken, Laufrad als konzentrierte Masse mittig zwischen
-          den Lagern, Wellendurchmesser aus T<sub>Welle</sub>.<br>
-          <strong>Spiralgehaeuse:</strong> Stepanoff-Methode mit konstanter
-          mittlerer Volutengeschwindigkeit, 8 Querschnitte alle 45&deg;.<br>
-          <strong>Rotor-FEM:</strong> Transfer-Matrix-Methode (Myklestad
-          1944), Mehrfreiheitsgrad-Modell mit Welle, Kupplung,
-          Lagern, Laufrad. Erste 3 biegekritische Drehzahlen mit
-          Modenformen, Campbell-Diagramm, Sicherheitsabstand &ge; 15 %
-          gemaess API 673.<br>
-          <strong>Spannungsprofil:</strong> &sigma;<sub>r</sub>(r) und
-          &sigma;<sub>&theta;</sub>(r) entlang Scheibenradius
-          (Timoshenko/Goodier, geschlossene Loesung) mit
-          Vergleichsspannung nach Gestaltaenderungsenergiehypothese.<br>
-          <strong>Off-Design-Kennfeld:</strong> Verlustmodell wird ueber
-          0.4..1.4 Q<sub>d</sub> ausgewertet, Identifikation von
-          Surge-Linie, Best-Efficiency-Point und Stall-Marge nach API 673.
-        </p>
-        <p class="fineprint">
-          Verifikation mit klassischen Mehrfreiheitsgrad-Verfahren
-          (Transfer-Matrix-Rotor-FEM, geschlossene Scheibenspannung,
-          Mehrpunkt-1D-Verlustmodell). Eine 3D-CFD-Stroemungsanalyse
-          (Fluent / OpenFOAM) und 3D-Solid-FEM (ANSYS Mechanical) der
-          Schaufelblattnachgiebigkeit, Schaufelfussspannung und
-          Eigenformen-Pruefung wird vor Fertigung weiterhin empfohlen.
-        </p>
-      </div>
+      <details class="section">
+        <summary class="section-head">Berechnungs-Grundlagen</summary>
+        <div class="card meta">
+          <h2>Verwendete Verfahren</h2>
+          <p>
+            <strong>Aerodynamik:</strong> Euler-Gleichung, Cordier-Diagramm,
+            Slip-Faktor nach Wiesner / Stodola, Pfleiderer-Schaufelzahl,
+            Druck- und Lieferziffer &psi; / &phi;.<br>
+            <strong>1D-Verlustmodell:</strong> Reibung (Blasius), Diffusion
+            (de Haller), Inzidenz, Volutenverlust nach Pfleiderer,
+            Radseitenreibung nach Daily &amp; Nece, Spaltverlust am Saugauge.<br>
+            <strong>Festigkeitsnachweis:</strong> rotierende Scheibe mit
+            zentrischer Bohrung, Schaufel-Fliehkraftspannung, thermische
+            Ueberlagerung. Streckgrenze bei Betriebstemperatur, geforderter
+            Sicherheitsfaktor SF &ge; 1.5 (FKM-Richtlinie / AD 2000 W 13).<br>
+            <strong>Rotordynamik:</strong> Jeffcott-Modell (1D) sowie
+            3-DOF-Mehrfreiheitsgrad-Modell (Translation, Pitching,
+            Biegung). Erste 3 biegekritische Drehzahlen mit Modenformen,
+            Campbell-Diagramm, Sicherheitsabstand &ge; 15 % nach API 673.<br>
+            <strong>Spiralgehaeuse:</strong> Stepanoff-Methode mit konstanter
+            mittlerer Volutengeschwindigkeit, 8 Querschnitte alle 45&deg;.<br>
+            <strong>Spannungsprofil:</strong> &sigma;<sub>r</sub>(r) und
+            &sigma;<sub>&theta;</sub>(r) entlang Scheibenradius
+            (Timoshenko/Goodier, geschlossene Loesung) mit
+            Vergleichsspannung nach Gestaltaenderungsenergiehypothese.<br>
+            <strong>Off-Design-Kennfeld:</strong> Verlustmodell wird ueber
+            0.4..1.4 Q<sub>d</sub> ausgewertet, Identifikation von
+            Surge-Linie, Best-Efficiency-Point und Stall-Marge nach API 673.<br>
+            <strong>Bauart:</strong> ein- und doppelflutig (SISW / DIDW);
+            doppelflutig teilt Q auf zwei Laufradhaelften auf.
+          </p>
+          <p class="fineprint">
+            Verifikation mit klassischen Mehrfreiheitsgrad-Verfahren
+            (3-DOF-Rotormodell, geschlossene Scheibenspannung,
+            Mehrpunkt-1D-Verlustmodell). Eine 3D-CFD-Stroemungsanalyse
+            (Fluent / OpenFOAM) und 3D-Solid-FEM (ANSYS Mechanical) der
+            Schaufelblattnachgiebigkeit, Schaufelfussspannung und
+            Eigenformen-Pruefung wird vor Fertigung weiterhin empfohlen.
+          </p>
+        </div>
+      </details>
 
       <button id="backToInputs" class="primary mobile-only" type="button">
         &larr; Eingaben aendern
