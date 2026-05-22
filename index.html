@@ -210,6 +210,13 @@
           <svg id="flowfield-svg" viewBox="-200 -200 480 400" aria-label="Stroemungsbild"></svg>
         </div>
         <div class="card">
+          <h2>2D-CFD-Simulation (Lattice-Boltzmann)</h2>
+          <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen nach der Lattice-Boltzmann-Methode (D2Q9-BGK). Vereinfachte 2D-Kaskade-Geometrie mit den Auslegungs-Schaufelwinkeln &beta;<sub>1</sub>, &beta;<sub>2</sub>. Echter CFD-Solver mit ca. 2200 Iterationen direkt im Browser &mdash; nicht 3D, aber keine empirische Naeherung.</p>
+          <button id="cfd-run" class="primary" type="button">CFD-Simulation starten</button>
+          <p id="cfd-status" class="hint" style="margin-top:10px"></p>
+          <canvas id="cfd-canvas" width="640" height="240" class="cfd-canvas"></canvas>
+        </div>
+        <div class="card">
           <h2>2D-Spannungsfeld &sigma;<sub>v</sub>(r)</h2>
           <p class="hint">Vergleichsspannung im Querschnitt der Laufradscheibe, eingefaerbt nach Mises. Direkt aus der geschlossenen Timoshenko/Goodier-Loesung &mdash; rotationssymmetrisch und damit ohne 3D-FEM-Diskretisierung exakt darstellbar.</p>
           <svg id="stressfield-svg" viewBox="-180 -180 460 380" aria-label="Spannungsfeld"></svg>
@@ -272,6 +279,7 @@
   <script src="js/detailed-design.js"></script>
   <script src="js/cfd-fem.js"></script>
   <script src="js/three-model.js"></script>
+  <script src="js/cfd-lbm.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

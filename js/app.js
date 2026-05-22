@@ -43,6 +43,9 @@ const fmt = (v, digits = 2) =>
 const fmtMm = (m) => fmt(m * 1000, 0) + ' mm';
 const fmtKw = (w) => fmt(w / 1000, 1) + ' kW';
 
+// Latest sizeFan result, used by the on-demand CFD simulation.
+let lastResult = null;
+
 // ---------- run ----------
 function runCalc() {
   const inp = {
@@ -89,6 +92,7 @@ function runCalc() {
   renderFlowField(res);
   renderStressField(ver.diskProfile);
   if (window.ThreeModel) window.ThreeModel.update(res);
+  lastResult = res;
   renderMaterials(res);
   renderNotes(res, det, ver);
 }
@@ -1083,6 +1087,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   setupTabs();
+
+  // CFD simulation button (on-demand because LBM takes ~ 1-3 seconds)
+  const cfdBtn = $('cfd-run');
+  if (cfdBtn) {
+    cfdBtn.addEventListener('click', () => {
+      if (!lastResult || !window.CFD_LBM) return;
+      cfdBtn.disabled = true;
+      cfdBtn.textContent = 'Simulation laeuft...';
+      window.CFD_LBM.runSimulation(lastResult, $('cfd-canvas'), $('cfd-status'), () => {
+        cfdBtn.disabled = false;
+        cfdBtn.textContent = 'Simulation neu starten';
+      });
+    });
+  }
 
   // initial calculation
   runCalc();

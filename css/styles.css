@@ -329,6 +329,18 @@ table.data td { font-family: var(--mono); }
 }
 .three-container canvas { display: block; }
 
+/* CFD simulation canvas */
+.cfd-canvas {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 640 / 240;
+  display: block;
+  margin-top: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
 /* ---------- materials & notes ---------- */
 #materials .row {
   padding: 10px 0;
