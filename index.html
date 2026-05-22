@@ -104,10 +104,12 @@
         <summary class="section-head">Ergebnis-Ueberblick</summary>
         <div class="card">
           <h2>Auslegungsergebnis</h2>
+          <p class="hint">Hauptkennzahlen: spez. Drehzahl (Cordier), Laufradgroessen, Wirkungsgrad, Leistung. Diese Zahlen entscheiden, ob die Maschine wirtschaftlich baubar ist und Standard-Motor / -Werkstoff ausreichen.</p>
           <div id="summary" class="summary"></div>
         </div>
         <div class="card">
           <h2>Hinweise</h2>
+          <p class="hint">Automatische Plausibilitaetspruefungen aus allen Modulen &mdash; Festigkeit (FKM, AD 2000), Rotordynamik (API 673), Aerodynamik (de Haller, Stall-Marge). Rote Befunde: Auslegungspunkt ueberarbeiten, bevor Stahl bestellt wird.</p>
           <ul id="notes"></ul>
         </div>
       </details>
@@ -116,6 +118,7 @@
         <summary class="section-head">Aerodynamik &amp; Kennfeld</summary>
         <div class="card">
           <h2>Geometrie</h2>
+          <p class="hint">Hauptabmessungen des Laufrads. D2 aus dem Cordier-Diagramm (&sigma;, &delta;), D1/D2 nach Bommes, b2 aus Kontinuitaet, Schaufelzahl nach Pfleiderer. Diese Masse werden spaeter zur Fertigungszeichnung.</p>
           <div class="geom-row">
             <div id="geom-table"></div>
             <svg id="geom-svg" viewBox="-180 -180 360 360" aria-label="Laufradgeometrie"></svg>
@@ -123,21 +126,25 @@
         </div>
         <div class="card">
           <h2>Geschwindigkeitsdreieck (Austritt)</h2>
+          <p class="hint">Euler-Gleichung der Stroemungsmaschinen mit Slip-Korrektur nach Wiesner (1967) bzw. Stodola (1924). u<sub>2</sub>, c<sub>2</sub>, w<sub>2</sub> sind die Grundlage jeder weiteren Bewertung &mdash; von Energieumsetzung bis Schaufelbelastung.</p>
           <svg id="vt-svg" viewBox="-20 -20 320 200" aria-label="Geschwindigkeitsdreieck"></svg>
           <div id="vt-table"></div>
         </div>
         <div class="card">
           <h2>Kennlinie</h2>
+          <p class="hint">&Delta;p(Q) und P(Q) um den Auslegungspunkt. Schaufeltyp bestimmt die Steigung &mdash; rueckwaerts gekruemmt faellt, vorwaerts steigt. Wichtig fuer Regelverhalten und Stabilitaet bei Lastwechsel.</p>
           <svg id="curve-svg" viewBox="0 0 600 320" aria-label="Kennlinie"></svg>
         </div>
         <div class="card">
           <h2>Verlustaufteilung (1D-Stroemungsrechnung)</h2>
+          <p class="hint">Mehrkomponenten-Verlustmodell nach Aungier / Cumpsty: Wandreibung (Blasius), Diffusion (de Haller), Inzidenz, Volutenverlust (Pfleiderer), Radseitenreibung (Daily &amp; Nece), Spaltverlust. Liefert den ausgerechneten &eta;<sub>total</sub> &mdash; kein empirischer Schaetzwert.</p>
           <div id="losses-summary" class="summary"></div>
           <svg id="losses-svg" viewBox="0 0 600 120" aria-label="Verlustaufteilung"></svg>
           <div id="losses-table"></div>
         </div>
         <div class="card">
           <h2>Off-Design-Kennfeld</h2>
+          <p class="hint">Verlustmodell ausgewertet ueber 0.4..1.5 Q<sub>design</sub>. Identifiziert Surge-Linie (lokales &Delta;p-Maximum), Best Efficiency Point und Stall-Marge nach API 673 (&ge; 10 %). Basis fuer Drehzahlregelung und Mindestlast-Klappen.</p>
           <div id="offdesign-summary" class="summary"></div>
           <svg id="offdesign-svg" viewBox="0 0 600 360" aria-label="Off-Design-Kennfeld"></svg>
         </div>
@@ -147,21 +154,25 @@
         <summary class="section-head">Festigkeit &amp; Rotordynamik</summary>
         <div class="card">
           <h2>Festigkeitsnachweis Laufrad</h2>
+          <p class="hint">Rotierende Scheibe mit zentrischer Bohrung (Timoshenko/Goodier) plus Schaufel-Fliehkraft plus thermische Spannung. Streckgrenze R<sub>p0.2</sub> bei Betriebstemperatur, geforderter Sicherheitsfaktor SF &ge; 1.5 nach FKM-Richtlinie / AD 2000 W 13.</p>
           <div id="strength-summary" class="summary"></div>
           <div id="strength-table"></div>
         </div>
         <div class="card">
           <h2>Spannungsverteilung &sigma;(r)</h2>
+          <p class="hint">Geschlossene Loesung &sigma;<sub>r</sub>(r), &sigma;<sub>&theta;</sub>(r), &sigma;<sub>v</sub>(r) entlang Radius. Zeigt nicht nur den Maximalwert, sondern wo auf der Scheibe die Spannung kritisch wird &mdash; entscheidend fuer konstruktive Verstaerkung am Bohrungsbereich.</p>
           <div id="diskprofile-summary" class="summary"></div>
           <svg id="diskprofile-svg" viewBox="0 0 600 280" aria-label="Spannungsverlauf"></svg>
         </div>
         <div class="card">
           <h2>Rotordynamik &mdash; biegekritische Drehzahl (1D)</h2>
+          <p class="hint">Jeffcott-Modell: Welle als Biegebalken, Laufrad als zentrierte Masse zwischen den Lagern. Erste biegekritische Drehzahl plus Lavalbereich-Klassifizierung. Erste Plausibilitaetspruefung vor dem detaillierten FEM.</p>
           <div id="rotor-summary" class="summary"></div>
           <div id="rotor-table"></div>
         </div>
         <div class="card">
           <h2>Rotor-FEM (3-DOF Mehrfreiheitsgrad)</h2>
+          <p class="hint">3-DOF-Modell mit Translation, Pitching und Biegung. Erste drei kritische Drehzahlen plus Campbell-Diagramm mit den Erreger-Harmonischen 1&times;, 2&times; und Z&times;n<sub>op</sub>. API 673 fordert &ge; 15 % Sicherheitsabstand zu jeder Mode.</p>
           <div id="rotorfem-summary" class="summary"></div>
           <svg id="campbell-svg" viewBox="0 0 600 320" aria-label="Campbell-Diagramm"></svg>
           <div id="modeshape-table"></div>
@@ -173,6 +184,7 @@
         <summary class="section-head">Konstruktion &amp; Werkstoff</summary>
         <div class="card">
           <h2>Spiralgehaeuse (nach Stepanoff)</h2>
+          <p class="hint">Stepanoff-Methode mit konstanter mittlerer Volutengeschwindigkeit c<sub>3</sub> &asymp; 0.5&middot;u<sub>2</sub>. 8 Querschnitte alle 45&deg;, Zungenabstand 5 % von D2. Definiert die Bauform des Gehaeuses und beeinflusst Volutenverluste.</p>
           <div class="geom-row">
             <div id="volute-table"></div>
             <svg id="volute-svg" viewBox="-180 -180 360 360" aria-label="Spiralgehaeuse"></svg>
@@ -180,6 +192,7 @@
         </div>
         <div class="card">
           <h2>Werkstoff &amp; Verschleissschutz</h2>
+          <p class="hint">Werkstoffwahl nach Temperatur, Staubbeladung und u<sub>2</sub>: DIN EN 10025/10028 fuer Staehle, SSAB Hardox fuer Verschleissbleche. Verschleissschutz nach VDZ-Merkblatt M-VT 4 (Hardox, Cr-Carbid CCO, Keramik, HVOF). Bestimmt Standzeit und Wartungskosten.</p>
           <div id="materials"></div>
         </div>
       </details>
