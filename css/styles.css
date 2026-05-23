@@ -333,7 +333,7 @@ table.data td { font-family: var(--mono); }
 .cfd-canvas {
   width: 100%;
   max-width: 640px;
-  aspect-ratio: 640 / 240;
+  aspect-ratio: 640 / 360;
   display: block;
   margin-top: 10px;
   background: var(--surface-2);

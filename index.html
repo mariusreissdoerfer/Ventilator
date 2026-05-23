@@ -211,10 +211,10 @@
         </div>
         <div class="card">
           <h2>2D-CFD-Simulation (Lattice-Boltzmann)</h2>
-          <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen nach der Lattice-Boltzmann-Methode (D2Q9-BGK). Vereinfachte 2D-Kaskade-Geometrie mit den Auslegungs-Schaufelwinkeln &beta;<sub>1</sub>, &beta;<sub>2</sub>. Echter CFD-Solver mit ca. 2200 Iterationen direkt im Browser &mdash; nicht 3D, aber keine empirische Naeherung.</p>
+          <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen nach der Lattice-Boltzmann-Methode (D2Q9-BGK). 2D-Kaskade mit den Auslegungs-Schaufelwinkeln &beta;<sub>1</sub>, &beta;<sub>2</sub>. <strong>Periodische Randbedingungen oben/unten</strong> bilden die Nachbarschaufeln ab &mdash; ein Schaufeldurchgang wird gerechnet, das Ergebnis dreifach gestapelt dargestellt, sodass die Wechselwirkung mit den Nachbarn sichtbar wird (klassische Kaskaden-Naeherung). Ca. 2200 Iterationen direkt im Browser.</p>
           <button id="cfd-run" class="primary" type="button">CFD-Simulation starten</button>
           <p id="cfd-status" class="hint" style="margin-top:10px"></p>
-          <canvas id="cfd-canvas" width="640" height="240" class="cfd-canvas"></canvas>
+          <canvas id="cfd-canvas" width="640" height="360" class="cfd-canvas"></canvas>
         </div>
         <div class="card">
           <h2>2D-Spannungsfeld &sigma;<sub>v</sub>(r)</h2>

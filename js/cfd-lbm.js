@@ -251,38 +251,52 @@
     const H2 = canvas.height;
     const ctx = canvas.getContext('2d');
 
-    // Field image at grid resolution
+    // The simulation domain is a *single* blade passage with periodic
+    // top/bottom boundaries -> mathematically equivalent to an infinite
+    // cascade of identical blades. To make that visible we tile the
+    // converged field N_TILES times vertically when painting; the user
+    // sees several neighbouring blades and the flow continuing smoothly
+    // between them.
+    const TILES = 3;
+
     const off = document.createElement('canvas');
-    off.width = nx; off.height = ny;
+    off.width = nx; off.height = ny * TILES;
     const offCtx = off.getContext('2d');
-    const img = offCtx.createImageData(nx, ny);
-    for (let c = 0; c < nx * ny; c++) {
-      const idx = c * 4;
-      if (wall[c]) {
-        img.data[idx] = 40; img.data[idx+1] = 40; img.data[idx+2] = 40;
-      } else {
-        const t = fields.maxMag > 1e-9 ? fields.mag[c] / fields.maxMag : 0;
-        const [r, g, b] = jetColor(t);
-        img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b;
+    const img = offCtx.createImageData(nx, ny * TILES);
+    for (let t = 0; t < TILES; t++) {
+      for (let c = 0; c < nx * ny; c++) {
+        const j = (c / nx) | 0;
+        const i = c - j * nx;
+        const targetJ = t * ny + j;
+        const idx = (targetJ * nx + i) * 4;
+        if (wall[c]) {
+          img.data[idx] = 40; img.data[idx+1] = 40; img.data[idx+2] = 40;
+        } else {
+          const tv = fields.maxMag > 1e-9 ? fields.mag[c] / fields.maxMag : 0;
+          const [r, g, b] = jetColor(tv);
+          img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b;
+        }
+        img.data[idx+3] = 255;
       }
-      img.data[idx+3] = 255;
     }
     offCtx.putImageData(img, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(off, 0, 0, W2, H2);
 
-    // Streamline overlay (LIC-like: many short tracers)
+    // Streamlines: trace once on the periodic domain, then draw the
+    // same trajectory on every tile so the visual continuity is clear.
+    const scaleX = W2 / nx;
+    const scaleY = H2 / (ny * TILES);
+    const tracerStep = Math.max(1, Math.floor(ny / 14));
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 1.2;
-    const scaleX = W2 / nx;
-    const scaleY = H2 / ny;
-    const tracerStep = Math.max(1, Math.floor(ny / 16));
-    for (let j0 = 4; j0 < ny; j0 += tracerStep) {
+
+    for (let j0 = 3; j0 < ny; j0 += tracerStep) {
+      // Trace
       let x = 2, y = j0;
-      ctx.beginPath();
-      ctx.moveTo(x * scaleX, y * scaleY);
-      for (let stp = 0; stp < 220; stp++) {
-        const ix = Math.floor(x), iy = Math.floor(y);
+      const pts = [{ x, y }];
+      for (let stp = 0; stp < 280; stp++) {
+        const ix = x | 0, iy = y | 0;
         if (ix < 0 || iy < 0 || ix >= nx || iy >= ny) break;
         const c = iy * nx + ix;
         if (wall[c]) break;
@@ -291,21 +305,60 @@
         if (sp < 1e-6) break;
         x += u / sp * 0.7;
         y += v / sp * 0.7;
-        // Periodic top/bottom
         if (y < 0) y += ny;
-        if (y >= ny) y -= ny;
-        ctx.lineTo(x * scaleX, y * scaleY);
+        else if (y >= ny) y -= ny;
+        pts.push({ x, y });
       }
-      ctx.stroke();
+      // Draw on every tile, lifting the pen across periodic wraps
+      for (let t = 0; t < TILES; t++) {
+        ctx.beginPath();
+        let prev = null;
+        for (const p of pts) {
+          const dx = p.x * scaleX;
+          const dy = (t * ny + p.y) * scaleY;
+          if (prev && Math.abs(p.y - prev.y) > ny / 2) {
+            ctx.moveTo(dx, dy);
+          } else if (prev) {
+            ctx.lineTo(dx, dy);
+          } else {
+            ctx.moveTo(dx, dy);
+          }
+          prev = p;
+        }
+        ctx.stroke();
+      }
     }
 
-    // Colourbar
+    // Pitch divider lines between the tiles so the periodicity is
+    // visually clear (subtle, dashed)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    for (let t = 1; t < TILES; t++) {
+      const yLine = (t * ny) * scaleY;
+      ctx.beginPath();
+      ctx.moveTo(0, yLine);
+      ctx.lineTo(W2 - 36, yLine);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Pitch annotation
+    ctx.fillStyle = '#222';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Schaufel n-1', 6, 14);
+    ctx.fillText('Schaufel n',   6, ny * scaleY + 14);
+    if (TILES >= 3) ctx.fillText('Schaufel n+1', 6, 2 * ny * scaleY + 14);
+
+    // Colour bar (right side)
     const cbW = 14, cbH = H2 * 0.7;
-    const cbX = W2 - 30, cbY = H2 * 0.15;
+    const cbX = W2 - 26, cbY = H2 * 0.15;
     const segs = 48;
     for (let i = 0; i < segs; i++) {
-      const t = 1 - i / (segs - 1);
-      const [r, g, b] = jetColor(t);
+      const tv = 1 - i / (segs - 1);
+      const [r, g, b] = jetColor(tv);
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(cbX, cbY + i * cbH / segs, cbW, cbH / segs + 0.6);
     }
@@ -313,9 +366,7 @@
     ctx.lineWidth = 0.8;
     ctx.strokeRect(cbX, cbY, cbW, cbH);
     ctx.fillStyle = '#222';
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('|w|', cbX, cbY - 4);
+    ctx.fillText('|w|', cbX - 4, cbY - 4);
     ctx.fillText('max', cbX + cbW + 2, cbY + 8);
     ctx.fillText('0',   cbX + cbW + 2, cbY + cbH + 4);
   }
