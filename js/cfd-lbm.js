@@ -263,78 +263,148 @@
   // statistics for the status line.
   let lastStats = { reversePct: 0, nReverse: 0, nFluid: 0 };
 
-  function render(canvas, s) {
+  function render(canvas, s, result) {
     const { wall, nx, ny } = s;
     const fields = computeFields(s);
     const W2 = canvas.width;
     const H2 = canvas.height;
     const ctx = canvas.getContext('2d');
 
-    // Periodic top/bottom = infinite cascade.  We compute one passage
-    // but render TILES copies stacked, then *crop* the visible portion
-    // to PITCH_VISIBLE pitches so the central blade is dominant while
-    // the neighbours stay just visible at the top and bottom edges.
-    const TILES = 3;
-    const PITCH_VISIBLE = 1.5;
-    const srcYStart = ny * (TILES / 2 - PITCH_VISIBLE / 2);   // = 0.75 ny
-    const srcH      = ny * PITCH_VISIBLE;                      // = 1.5  ny
+    // ============================================================
+    // Polar wedge rendering: the LBM solves on a rectangular grid
+    // (cascade approximation) but the physical blade passage is an
+    // annular sector ("Kuchenstueck"). Here we map the rectangular
+    // (i = radial, j = tangential) result onto the actual wedge:
+    // three consecutive blade pitches between D1 and D2, with each
+    // blade following its logarithmic spiral. The flow field is
+    // resampled per canvas pixel into that geometry.
+    // ============================================================
+    const Z = result?.geometry?.Z ?? 12;
+    const R1_phys = result?.geometry?.D1_m / 2 ?? 0.45;
+    const R2_phys = result?.geometry?.D2_m / 2 ?? 1.0;
+    const ratio = R1_phys / R2_phys;
 
-    // ---- Field image at offscreen grid resolution -----------------
-    const off = document.createElement('canvas');
-    off.width = nx; off.height = ny * TILES;
-    const offCtx = off.getContext('2d');
-    const img = offCtx.createImageData(nx, ny * TILES);
-    for (let t = 0; t < TILES; t++) {
-      for (let c = 0; c < nx * ny; c++) {
-        const j = (c / nx) | 0;
-        const i = c - j * nx;
-        const targetJ = t * ny + j;
-        const idx = (targetJ * nx + i) * 4;
+    const TILES = 3;
+    const halfAngle = Math.PI * TILES / Z;   // half-angle of the displayed sector
+
+    // Fit the sector into the canvas. The widest horizontal extent is
+    // at the outer arc (D2). Constraint: 2 R2 sin(halfAngle) <= 0.92 W
+    // Vertical extent of the sector: R2 - R1 cos(halfAngle)  (apex below
+    // canvas, outer arc near top, inner arc somewhere in middle/bottom).
+    const R2_px_h = (W2 * 0.92) / (2 * Math.sin(Math.min(halfAngle, Math.PI / 2 - 0.01)));
+    const R2_px_v = (H2 * 0.84) / (1 - ratio * Math.cos(halfAngle));
+    const R2_px = Math.min(R2_px_h, R2_px_v);
+    const R1_px = R2_px * ratio;
+
+    const cx = W2 / 2;
+    const cy = R2_px + (H2 - (R2_px - R1_px * Math.cos(halfAngle))) / 2 - 6;
+
+    // Field image - sample one canvas pixel at a time
+    const img = ctx.createImageData(W2, H2);
+    const bg = [239, 241, 244];     // page surface
+    let nReverse = 0, nFluid = 0;
+
+    for (let py = 0; py < H2; py++) {
+      const dy = py - cy;
+      for (let px = 0; px < W2; px++) {
+        const dx = px - cx;
+        const r_px = Math.sqrt(dx * dx + dy * dy);
+        // theta measured from "up" direction, increasing clockwise
+        const theta = Math.atan2(dx, -dy);
+        const idx = (py * W2 + px) * 4;
+
+        if (r_px < R1_px || r_px > R2_px || Math.abs(theta) > halfAngle) {
+          img.data[idx]   = bg[0];
+          img.data[idx+1] = bg[1];
+          img.data[idx+2] = bg[2];
+          img.data[idx+3] = 255;
+          continue;
+        }
+
+        // Map (r, theta) -> (i, j) on the cascade grid.
+        // Radial coordinate i in [0, nx)
+        const sr = (r_px - R1_px) / (R2_px - R1_px);
+        let i = (sr * (nx - 1)) | 0;
+        if (i < 0) i = 0; else if (i >= nx) i = nx - 1;
+        // Tangential: theta in [-halfAngle, +halfAngle] -> j_global in [0, TILES*ny)
+        const sth = (theta + halfAngle) / (2 * halfAngle);
+        const jGlobal = sth * TILES * ny;
+        let jLocal = jGlobal % ny;
+        if (jLocal < 0) jLocal += ny;
+        const j = jLocal | 0;
+        const c = j * nx + i;
+
         if (wall[c]) {
-          img.data[idx] = 40; img.data[idx+1] = 40; img.data[idx+2] = 40;
+          img.data[idx]   = 40;
+          img.data[idx+1] = 40;
+          img.data[idx+2] = 40;
         } else {
           const tv = fields.maxMag > 1e-9 ? fields.mag[c] / fields.maxMag : 0;
           const [r, g, b] = jetColor(tv);
-          img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b;
+          if (fields.ux[c] < 0) {
+            // Reverse flow: blend toward red for visibility
+            img.data[idx]   = (r * 0.40 + 220 * 0.60) | 0;
+            img.data[idx+1] = (g * 0.40 +  20 * 0.60) | 0;
+            img.data[idx+2] = (b * 0.40 +  20 * 0.60) | 0;
+          } else {
+            img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b;
+          }
         }
         img.data[idx+3] = 255;
       }
     }
-    offCtx.putImageData(img, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(off, 0, srcYStart, nx, srcH, 0, 0, W2, H2);
+    ctx.putImageData(img, 0, 0);
 
-    // Mapping helpers from field coords (in the 3-tile space) to canvas
-    const xScale = W2 / nx;
-    const yScale = H2 / srcH;
-    const xToCanvas = (i) => i * xScale;
-    const yToCanvas = (yField) => (yField - srcYStart) * yScale;
-
-    // ---- Reverse-flow overlay (Stroemungsabriss / Rezirkulation) ---
-    // Any fluid cell with u_x < 0 indicates back-flow; paint these red.
-    let nReverse = 0, nFluid = 0;
-    ctx.fillStyle = 'rgba(220, 20, 20, 0.55)';
+    // Count reverse-flow / fluid cells on the LBM grid (not per-pixel)
     for (let c = 0; c < nx * ny; c++) {
       if (wall[c]) continue;
       nFluid++;
-      if (fields.ux[c] < 0) {
-        nReverse++;
-        const jLocal = (c / nx) | 0;
-        const iLocal = c - jLocal * nx;
-        for (let t = 0; t < TILES; t++) {
-          const yC = yToCanvas(t * ny + jLocal);
-          if (yC > -yScale && yC < H2) {
-            ctx.fillRect(xToCanvas(iLocal), yC, xScale + 0.6, yScale + 0.6);
-          }
-        }
-      }
+      if (fields.ux[c] < 0) nReverse++;
     }
     lastStats = {
       reversePct: nFluid > 0 ? 100 * nReverse / nFluid : 0,
       nReverse, nFluid,
     };
 
-    // ---- Streamlines (LIC-like) ------------------------------------
+    // ---- Wedge outline + pitch dividers ---------------------------
+    function polarToXY(rPx, th) {
+      return [cx + rPx * Math.sin(th), cy - rPx * Math.cos(th)];
+    }
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(cx, cy, R2_px, -halfAngle - Math.PI/2, halfAngle - Math.PI/2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R1_px, -halfAngle - Math.PI/2, halfAngle - Math.PI/2);
+    ctx.stroke();
+    // Side spokes
+    ctx.beginPath();
+    const [sx1a, sy1a] = polarToXY(R1_px, -halfAngle);
+    const [sx2a, sy2a] = polarToXY(R2_px, -halfAngle);
+    ctx.moveTo(sx1a, sy1a); ctx.lineTo(sx2a, sy2a);
+    const [sx1b, sy1b] = polarToXY(R1_px,  halfAngle);
+    const [sx2b, sy2b] = polarToXY(R2_px,  halfAngle);
+    ctx.moveTo(sx1b, sy1b); ctx.lineTo(sx2b, sy2b);
+    ctx.stroke();
+
+    // Pitch dividers (dashed radial lines between tiles)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    for (let t = 1; t < TILES; t++) {
+      const th = -halfAngle + (t / TILES) * 2 * halfAngle;
+      const [x1, y1] = polarToXY(R1_px, th);
+      const [x2, y2] = polarToXY(R2_px, th);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // ---- Streamlines in polar geometry ----------------------------
     const tracerStep = Math.max(1, Math.floor(ny / 14));
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = 1.3;
@@ -355,18 +425,23 @@
         else if (y >= ny) y -= ny;
         pts.push({ x, y });
       }
+      // Draw on each tile, converting to polar canvas coordinates
       for (let t = 0; t < TILES; t++) {
         ctx.beginPath();
         let prev = null;
         for (const p of pts) {
-          const dx = xToCanvas(p.x);
-          const dy = yToCanvas(t * ny + p.y);
+          const sr = p.x / nx;
+          const sth = (t + p.y / ny) / TILES;   // 0..1 across whole sector
+          const r_px = R1_px + sr * (R2_px - R1_px);
+          const th = -halfAngle + sth * 2 * halfAngle;
+          const cx_pt = cx + r_px * Math.sin(th);
+          const cy_pt = cy - r_px * Math.cos(th);
           if (prev && Math.abs(p.y - prev.y) > ny / 2) {
-            ctx.moveTo(dx, dy);
+            ctx.moveTo(cx_pt, cy_pt);
           } else if (prev) {
-            ctx.lineTo(dx, dy);
+            ctx.lineTo(cx_pt, cy_pt);
           } else {
-            ctx.moveTo(dx, dy);
+            ctx.moveTo(cx_pt, cy_pt);
           }
           prev = p;
         }
@@ -374,42 +449,36 @@
       }
     }
 
-    // ---- Pitch divider lines ---------------------------------------
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.setLineDash([4, 4]);
-    ctx.lineWidth = 1;
-    for (let t = 1; t < TILES; t++) {
-      const yLine = yToCanvas(t * ny);
-      if (yLine > 0 && yLine < H2) {
-        ctx.beginPath();
-        ctx.moveTo(0, yLine);
-        ctx.lineTo(W2 - 40, yLine);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-
-    // ---- Labels ----------------------------------------------------
-    ctx.fillStyle = '#fff';
+    // ---- Labels ---------------------------------------------------
+    ctx.fillStyle = '#222';
+    ctx.font = '12px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    // D1 label below the inner arc, centered
+    const [d1x, d1y] = polarToXY(R1_px - 14, 0);
+    ctx.fillText(`D1 = ${(R1_phys * 2 * 1000).toFixed(0)} mm`, d1x, d1y);
+    // D2 label above the outer arc, centered
+    const [d2x, d2y] = polarToXY(R2_px + 4, 0);
+    ctx.fillText(`D2 = ${(R2_phys * 2 * 1000).toFixed(0)} mm`, d2x, d2y - 4);
+    // Pitch annotation
     ctx.font = '11px ui-monospace, monospace';
     ctx.textAlign = 'left';
-    // Central blade label sits inside the middle tile, near its top
-    ctx.fillText('Schaufel n-1 (Nachbar)', 8, 14);
-    ctx.fillText('Schaufel n',             8, yToCanvas(ny) + 14);
-    ctx.fillText('Schaufel n+1 (Nachbar)', 8, yToCanvas(2 * ny) + 14);
+    ctx.fillText(`Z = ${Z} Schaufeln, Sektor = ${(2 * halfAngle * 180 / Math.PI).toFixed(0)}° (${TILES} Teilungen)`, 8, H2 - 24);
+    // Rotation arrow
+    ctx.fillStyle = 'rgba(28,93,153,0.85)';
+    ctx.fillText('Drehrichtung →', 8, H2 - 8);
 
     // Separation legend (small red square + label) if any reverse flow
     if (nReverse > 0) {
       ctx.fillStyle = 'rgba(220,20,20,0.8)';
-      ctx.fillRect(W2 - 180, H2 - 22, 14, 14);
-      ctx.fillStyle = '#fff';
-      ctx.fillText('Rueckstroemung (u<0)', W2 - 162, H2 - 11);
+      ctx.fillRect(W2 - 184, H2 - 22, 14, 14);
+      ctx.fillStyle = '#222';
+      ctx.textAlign = 'left';
+      ctx.fillText('Rueckstroemung (u<0)', W2 - 166, H2 - 11);
     }
 
     // ---- Colour bar (right side) -----------------------------------
-    const cbW = 14, cbH = H2 * 0.7;
-    const cbX = W2 - 26, cbY = H2 * 0.15;
+    const cbW = 14, cbH = H2 * 0.55;
+    const cbX = W2 - 26, cbY = H2 * 0.10;
     const segs = 48;
     for (let i = 0; i < segs; i++) {
       const tv = 1 - i / (segs - 1);
@@ -420,7 +489,8 @@
     ctx.strokeStyle = '#555';
     ctx.lineWidth = 0.8;
     ctx.strokeRect(cbX, cbY, cbW, cbH);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#222';
+    ctx.textAlign = 'left';
     ctx.fillText('|w|', cbX - 4, cbY - 4);
     ctx.fillText('max', cbX + cbW + 2, cbY + 8);
     ctx.fillText('0',   cbX + cbW + 2, cbY + cbH + 4);
@@ -469,7 +539,7 @@
       }
       // Render periodically for progress feedback (also updates lastStats)
       if (done % 200 === 0 || done === totalIter) {
-        render(canvas, state);
+        render(canvas, state, result);
       }
       if (statusEl) {
         if (done === totalIter) {
