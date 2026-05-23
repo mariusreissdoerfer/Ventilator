@@ -141,10 +141,16 @@
 
   // ---- One time step (collision + streaming with BCs) ----------------
   function step(s) {
-    const { f, fnew, wall, nx, ny, ux_in, uy_in, tau } = s;
+    const { f, fnew, wall, nx, ny, ux_in, uy_in, tau, F_centrif, radiusRatio } = s;
     const invtau = 1 / tau;
 
-    // Collision in place on f.  Skip wall cells.
+    // Collision in place on f.  Skip wall cells.  The rotating-frame
+    // centrifugal body force is applied via the Shan-Chen scheme: the
+    // velocity used to evaluate the equilibrium distribution is
+    // shifted by F * tau / rho, which is equivalent to a body force
+    // rho * omega^2 * r in the momentum equation.  F grows linearly
+    // with radial position i so that the radial outward acceleration
+    // mimics what happens in the rotating impeller frame.
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const c = j * nx + i;
@@ -162,6 +168,13 @@
         let uy = my / rho;
         // Driving: enforce velocity at inlet, keep rho at outlet
         if (i === 0) { ux = ux_in; uy = uy_in; rho = 1; }
+        // Centrifugal body force (Shan-Chen): shift equilibrium velocity
+        // F_centrif scales the dimensionless r/R2 -> linearly growing
+        // radial force, capturing rho * omega^2 * r in the rotating frame.
+        if (F_centrif > 0 && i > 0) {
+          const r_norm = radiusRatio + (1 - radiusRatio) * (i / (nx - 1));
+          ux += F_centrif * r_norm * tau;
+        }
         const uu = ux*ux + uy*uy;
         for (let k = 0; k < 9; k++) {
           const cu = CX[k]*ux + CY[k]*uy;
@@ -525,7 +538,16 @@
     const { wall } = buildBladeWalls(nx, ny, result);
     const f = initEquilibrium(nx, ny, ux_in, uy_in);
     const fnew = new Float32Array(f.length);
-    const state = { f, fnew, wall, nx, ny, ux_in, uy_in, tau };
+
+    // Centrifugal force coefficient: tuned so the radial velocity at
+    // the outer edge is ~ 50 % above the inlet value, capturing the
+    // dominant rotating-frame effect (rho * omega^2 * r) without
+    // pushing the LBM toward its Mach-number stability limit.  In
+    // a real impeller u_tip / c_m1 = (omega * R2) / c_m1 is typically
+    // 5 to 10; the visual gradient here is the qualitative analogue.
+    const radiusRatio = (result.geometry.D1_m / result.geometry.D2_m);
+    const F_centrif   = 1.2e-4;
+    const state = { f, fnew, wall, nx, ny, ux_in, uy_in, tau, F_centrif, radiusRatio };
 
     const totalIter = 2200;
     let done = 0;
