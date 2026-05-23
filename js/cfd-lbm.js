@@ -141,16 +141,22 @@
 
   // ---- One time step (collision + streaming with BCs) ----------------
   function step(s) {
-    const { f, fnew, wall, nx, ny, ux_in, uy_in, tau, F_centrif, radiusRatio } = s;
+    const { f, fnew, wall, nx, ny, ux_in, uy_in, tau,
+            F_centrif, omega_lat, radiusRatio } = s;
     const invtau = 1 / tau;
 
-    // Collision in place on f.  Skip wall cells.  The rotating-frame
-    // centrifugal body force is applied via the Shan-Chen scheme: the
-    // velocity used to evaluate the equilibrium distribution is
-    // shifted by F * tau / rho, which is equivalent to a body force
-    // rho * omega^2 * r in the momentum equation.  F grows linearly
-    // with radial position i so that the radial outward acceleration
-    // mimics what happens in the rotating impeller frame.
+    // Collision in place on f.  The rotating-frame body forces are
+    // applied via the Shan-Chen scheme (velocity shift before f_eq):
+    //   F_centrifugal = rho * omega^2 * r          (outward in +x)
+    //   F_coriolis    = -2 rho (omega x u)
+    //                 = (+2 omega u_y, -2 omega u_x)  for omega in +z
+    // Centrifugal accelerates the fluid radially outward.
+    // Coriolis deflects radially outflowing fluid against the rotation
+    // direction (-y in the rotating cascade frame) - this is exactly
+    // why backward-curved blades are the natural choice for high
+    // efficiency: their backward sweep counteracts the Coriolis-induced
+    // slip and recovers more pressure rise from blade work.
+    const twoOmega = 2 * omega_lat;
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const c = j * nx + i;
@@ -166,14 +172,25 @@
         if (rho < 1e-9) rho = 1;
         let ux = mx / rho;
         let uy = my / rho;
-        // Driving: enforce velocity at inlet, keep rho at outlet
+        // Driving: enforce velocity at inlet
         if (i === 0) { ux = ux_in; uy = uy_in; rho = 1; }
-        // Centrifugal body force (Shan-Chen): shift equilibrium velocity
-        // F_centrif scales the dimensionless r/R2 -> linearly growing
-        // radial force, capturing rho * omega^2 * r in the rotating frame.
-        if (F_centrif > 0 && i > 0) {
+        // Body forces (rotating frame)
+        if (i > 0) {
           const r_norm = radiusRatio + (1 - radiusRatio) * (i / (nx - 1));
-          ux += F_centrif * r_norm * tau;
+          const Fcent_x = F_centrif * r_norm;
+          const Fcor_x  = +twoOmega * uy;
+          const Fcor_y  = -twoOmega * ux;
+          ux += (Fcent_x + Fcor_x) * tau;
+          uy +=  Fcor_y           * tau;
+        }
+        // Velocity clamp - prevents Mach > 0.3 runaway if forces are
+        // misconfigured; the equilibrium expansion is only valid for
+        // small u.
+        const uMax = 0.28;
+        const uu_raw = ux*ux + uy*uy;
+        if (uu_raw > uMax * uMax) {
+          const scale = uMax / Math.sqrt(uu_raw);
+          ux *= scale; uy *= scale;
         }
         const uu = ux*ux + uy*uy;
         for (let k = 0; k < 9; k++) {
@@ -228,15 +245,21 @@
     f.set(fnew);
   }
 
-  // ---- Macroscopic velocity magnitude for visualisation --------------
+  // ---- Macroscopic fields for visualisation --------------------------
+  //   |w|         relative velocity magnitude
+  //   p_lat       lattice pressure deviation (rho - 1)/3
+  //   omega_z     z-component of vorticity (curl of u)
+  //   u_radial    radial (x) velocity component, signed
   function computeFields(s) {
     const { f, wall, nx, ny } = s;
-    const mag = new Float32Array(nx * ny);
-    const ux  = new Float32Array(nx * ny);
-    const uy  = new Float32Array(nx * ny);
-    let maxMag = 0;
+    const mag       = new Float32Array(nx * ny);
+    const ux        = new Float32Array(nx * ny);
+    const uy        = new Float32Array(nx * ny);
+    const pressure  = new Float32Array(nx * ny);
+    const vorticity = new Float32Array(nx * ny);
+    let maxMag = 0, pMin = +1e9, pMax = -1e9, wAbsMax = 0;
     for (let c = 0; c < nx * ny; c++) {
-      if (wall[c]) { mag[c] = -1; continue; }
+      if (wall[c]) { mag[c] = -1; pressure[c] = NaN; continue; }
       const c9 = c * 9;
       let rho = 0, mxv = 0, myv = 0;
       for (let k = 0; k < 9; k++) {
@@ -252,8 +275,36 @@
       const m = Math.sqrt(u*u + v*v);
       mag[c] = m;
       if (m > maxMag) maxMag = m;
+      // Lattice pressure (isothermal): p = rho c_s^2 = rho / 3.
+      // Use deviation from reference rho = 1.
+      const p = (rho - 1) / 3;
+      pressure[c] = p;
+      if (p < pMin) pMin = p;
+      if (p > pMax) pMax = p;
     }
-    return { mag, ux, uy, maxMag };
+    // Vorticity via central differences (skip walls and the periodic-y
+    // wrap; interior cells only).
+    for (let j = 0; j < ny; j++) {
+      const jm = (j - 1 + ny) % ny;
+      const jp = (j + 1) % ny;
+      for (let i = 1; i < nx - 1; i++) {
+        const c = j * nx + i;
+        if (wall[c]) continue;
+        const cR = j * nx + (i + 1);
+        const cL = j * nx + (i - 1);
+        const cU = jm * nx + i;
+        const cD = jp * nx + i;
+        if (wall[cR] || wall[cL] || wall[cU] || wall[cD]) continue;
+        const dvdx = (uy[cR] - uy[cL]) * 0.5;
+        const dudy = (ux[cD] - ux[cU]) * 0.5;
+        const w = dvdx - dudy;
+        vorticity[c] = w;
+        const aw = Math.abs(w);
+        if (aw > wAbsMax) wAbsMax = aw;
+      }
+    }
+    return { mag, ux, uy, pressure, vorticity,
+             maxMag, pMin, pMax, wAbsMax };
   }
 
   // ---- Colormap & rendering ------------------------------------------
@@ -272,13 +323,66 @@
     return [Math.round(255 - 127 * (t - 0.875) / 0.125), 0, 0];
   }
 
+  // Diverging blue-white-red colormap for signed quantities like
+  // pressure deviation or vorticity. s is in [-1, +1].
+  function divergingColor(s) {
+    if (s !== s) return [220, 220, 220];   // NaN -> grey
+    s = Math.max(-1, Math.min(1, s));
+    if (s >= 0) {
+      // White (1,1,1) -> red (0.8, 0.1, 0.1)
+      return [
+        Math.round(255 - s * (255 - 200)),
+        Math.round(255 - s * (255 -  30)),
+        Math.round(255 - s * (255 -  30)),
+      ];
+    }
+    const a = -s;
+    // White -> deep blue (0.1, 0.25, 0.7)
+    return [
+      Math.round(255 - a * (255 -  30)),
+      Math.round(255 - a * (255 -  70)),
+      Math.round(255 - a * (255 - 180)),
+    ];
+  }
+
+  const MODE_LABELS = {
+    velocity: 'Relativgeschwindigkeit |w|',
+    pressure: 'Druck-Abweichung p',
+    vorticity: 'Wirbelstaerke ωz',
+    radial:   'Radialkomponente u_r',
+  };
+
   // Result of last render, exposed so the caller can read the separation
   // statistics for the status line.
   let lastStats = { reversePct: 0, nReverse: 0, nFluid: 0 };
 
-  function render(canvas, s, result) {
+  function render(canvas, s, result, mode = 'velocity') {
     const { wall, nx, ny } = s;
     const fields = computeFields(s);
+
+    // Per-mode setup: signed or magnitude, value range, palette, label
+    let palette, valueAt, vMin, vMax, label;
+    if (mode === 'pressure') {
+      const pr = Math.max(Math.abs(fields.pMin), Math.abs(fields.pMax), 1e-9);
+      vMin = -pr; vMax = +pr; label = 'p (Lattice)';
+      palette = (v) => divergingColor(v / pr);
+      valueAt = (c) => fields.pressure[c];
+    } else if (mode === 'vorticity') {
+      const wr = Math.max(fields.wAbsMax, 1e-9);
+      vMin = -wr; vMax = +wr; label = 'ω_z';
+      palette = (v) => divergingColor(v / wr);
+      valueAt = (c) => fields.vorticity[c];
+    } else if (mode === 'radial') {
+      const ur = Math.max(...Array.from(fields.ux).map(Math.abs), 1e-9);
+      vMin = -ur; vMax = +ur; label = 'u_r';
+      palette = (v) => divergingColor(v / ur);
+      valueAt = (c) => fields.ux[c];
+    } else {
+      // velocity magnitude (default)
+      vMin = 0; vMax = fields.maxMag; label = '|w|';
+      palette = (v) => jetColor(fields.maxMag > 1e-9 ? v / fields.maxMag : 0);
+      valueAt = (c) => fields.mag[c];
+    }
     const W2 = canvas.width;
     const H2 = canvas.height;
     const ctx = canvas.getContext('2d');
@@ -352,10 +456,12 @@
           img.data[idx+1] = 40;
           img.data[idx+2] = 40;
         } else {
-          const tv = fields.maxMag > 1e-9 ? fields.mag[c] / fields.maxMag : 0;
-          const [r, g, b] = jetColor(tv);
-          if (fields.ux[c] < 0) {
-            // Reverse flow: blend toward red for visibility
+          const v = valueAt(c);
+          const [r, g, b] = palette(v);
+          // For the velocity mode, blend in a red tint where the flow
+          // reverses (u_x < 0).  Other modes don't get the overlay
+          // because the sign is already visible in the diverging map.
+          if (mode === 'velocity' && fields.ux[c] < 0) {
             img.data[idx]   = (r * 0.40 + 220 * 0.60) | 0;
             img.data[idx+1] = (g * 0.40 +  20 * 0.60) | 0;
             img.data[idx+2] = (b * 0.40 +  20 * 0.60) | 0;
@@ -494,8 +600,9 @@
     const cbX = W2 - 26, cbY = H2 * 0.10;
     const segs = 48;
     for (let i = 0; i < segs; i++) {
-      const tv = 1 - i / (segs - 1);
-      const [r, g, b] = jetColor(tv);
+      // top -> bottom maps to vMax .. vMin
+      const v = vMax + (vMin - vMax) * (i / (segs - 1));
+      const [r, g, b] = palette(v);
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(cbX, cbY + i * cbH / segs, cbW, cbH / segs + 0.6);
     }
@@ -504,15 +611,30 @@
     ctx.strokeRect(cbX, cbY, cbW, cbH);
     ctx.fillStyle = '#222';
     ctx.textAlign = 'left';
-    ctx.fillText('|w|', cbX - 4, cbY - 4);
-    ctx.fillText('max', cbX + cbW + 2, cbY + 8);
-    ctx.fillText('0',   cbX + cbW + 2, cbY + cbH + 4);
+    ctx.fillText(label, cbX - 6, cbY - 4);
+    ctx.fillText(vMax.toFixed(2 + (Math.abs(vMax) < 0.1 ? 1 : 0)),
+                 cbX + cbW + 2, cbY + 8);
+    if (vMin < 0) {
+      ctx.fillText('0', cbX + cbW + 2, cbY + cbH / 2 + 4);
+    }
+    ctx.fillText(vMin.toFixed(2 + (Math.abs(vMin) < 0.1 ? 1 : 0)),
+                 cbX + cbW + 2, cbY + cbH + 4);
   }
 
   function getLastStats() { return lastStats; }
 
+  // Cache the last converged state so the UI can re-paint with a
+  // different visualisation mode without re-running the solver.
+  let lastState = null;
+  let lastResult = null;
+
+  function renderMode(canvas, mode) {
+    if (!lastState || !canvas) return;
+    render(canvas, lastState, lastResult, mode);
+  }
+
   // ---- Public entry point --------------------------------------------
-  function runSimulation(result, canvas, statusEl, doneCallback) {
+  function runSimulation(result, canvas, statusEl, doneCallback, mode) {
     if (!result || !canvas) return;
     if (running) return;
     running = true;
@@ -546,8 +668,14 @@
     // a real impeller u_tip / c_m1 = (omega * R2) / c_m1 is typically
     // 5 to 10; the visual gradient here is the qualitative analogue.
     const radiusRatio = (result.geometry.D1_m / result.geometry.D2_m);
-    const F_centrif   = 1.2e-4;
-    const state = { f, fnew, wall, nx, ny, ux_in, uy_in, tau, F_centrif, radiusRatio };
+    // F_centrif and omega_lat are tuned together so the combined
+    // rotating-frame forcing stays well inside the LBM Mach 0.3
+    // stability envelope (centrifugal alone reached |u| ~ 0.29; adding
+    // Coriolis without reducing F_centrif blew the solver up).
+    const F_centrif   = 6e-5;
+    const omega_lat   = 0.5 * Math.sqrt(F_centrif / nx);
+    const state = { f, fnew, wall, nx, ny, ux_in, uy_in, tau,
+                    F_centrif, omega_lat, radiusRatio };
 
     const totalIter = 2200;
     let done = 0;
@@ -561,7 +689,12 @@
       }
       // Render periodically for progress feedback (also updates lastStats)
       if (done % 200 === 0 || done === totalIter) {
-        render(canvas, state, result);
+        render(canvas, state, result, mode || 'velocity');
+      }
+      // Cache for mode switching after convergence
+      if (done === totalIter) {
+        lastState = state;
+        lastResult = result;
       }
       if (statusEl) {
         if (done === totalIter) {
@@ -586,5 +719,5 @@
     chunk();
   }
 
-  window.CFD_LBM = { runSimulation };
+  window.CFD_LBM = { runSimulation, renderMode };
 })();

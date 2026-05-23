@@ -1090,15 +1090,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // CFD simulation button (on-demand because LBM takes ~ 1-3 seconds)
   const cfdBtn = $('cfd-run');
+  const cfdMode = $('cfd-mode');
   if (cfdBtn) {
     cfdBtn.addEventListener('click', () => {
       if (!lastResult || !window.CFD_LBM) return;
       cfdBtn.disabled = true;
       cfdBtn.textContent = 'Simulation laeuft...';
+      const mode = cfdMode ? cfdMode.value : 'velocity';
       window.CFD_LBM.runSimulation(lastResult, $('cfd-canvas'), $('cfd-status'), () => {
         cfdBtn.disabled = false;
         cfdBtn.textContent = 'Simulation neu starten';
-      });
+      }, mode);
+    });
+  }
+  // Live re-render when the visualisation mode is changed (no resolve)
+  if (cfdMode) {
+    cfdMode.addEventListener('change', () => {
+      if (window.CFD_LBM && window.CFD_LBM.renderMode) {
+        window.CFD_LBM.renderMode($('cfd-canvas'), cfdMode.value);
+      }
     });
   }
 

@@ -211,8 +211,19 @@
         </div>
         <div class="card">
           <h2>2D-CFD-Simulation (Lattice-Boltzmann)</h2>
-          <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen (D2Q9-BGK) im <strong>rotierenden Bezugssystem</strong>. Eine Schaufelteilung wird auf einem periodischen Gitter geloest, das Ergebnis dreifach in die <strong>echte Kreissektor-Geometrie</strong> zwischen D1 und D2 abgebildet (Kuchenstueck). Zusaetzlich zur Kaskaden-Stroemung wirkt eine radial linear wachsende <strong>Zentrifugal-Koerperkraft</strong> (Shan-Chen-Schema), die das Fluid wie im realen Laufrad nach aussen beschleunigt &mdash; sichtbar als Farbgradient von kuehler innen zu waermer aussen. Rueckstroemung wird rot ueberlagert. ~ 2200 Iterationen direkt im Browser.</p>
-          <button id="cfd-run" class="primary" type="button">CFD-Simulation starten</button>
+          <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen (D2Q9-BGK) im <strong>rotierenden Bezugssystem</strong> mit Zentrifugal- und Coriolis-Koerperkraeften (Shan-Chen-Schema). Eine Schaufelteilung wird auf einem periodischen Gitter geloest, das Ergebnis dreifach in die <strong>echte Kreissektor-Geometrie</strong> zwischen D1 und D2 abgebildet (Kuchenstueck). Anzeige zwischen Geschwindigkeit, Druck, Wirbelstaerke und Radialkomponente umschaltbar. ~ 2200 Iterationen direkt im Browser.</p>
+          <div class="cfd-controls">
+            <button id="cfd-run" class="primary" type="button">CFD-Simulation starten</button>
+            <label class="field" style="flex:1; min-width: 180px">
+              <span>Visualisierung</span>
+              <select id="cfd-mode">
+                <option value="velocity">Geschwindigkeit |w|</option>
+                <option value="pressure">Druck (Δp)</option>
+                <option value="vorticity">Wirbelstaerke ω<sub>z</sub></option>
+                <option value="radial">Radialkomponente u<sub>r</sub></option>
+              </select>
+            </label>
+          </div>
           <p id="cfd-status" class="hint" style="margin-top:10px"></p>
           <canvas id="cfd-canvas" width="640" height="360" class="cfd-canvas"></canvas>
         </div>
