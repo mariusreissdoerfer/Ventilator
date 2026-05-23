@@ -348,6 +348,16 @@ table.data td { font-family: var(--mono); }
   margin-top: 10px;
 }
 .cfd-controls .primary { flex: 0 0 auto; width: auto; min-width: 200px; margin-top: 0; }
+.volute-canvas {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 640 / 500;
+  display: block;
+  margin-top: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
 
 /* ---------- materials & notes ---------- */
 #materials .row {

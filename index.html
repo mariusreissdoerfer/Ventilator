@@ -205,11 +205,6 @@
           <div id="three-container" class="three-container"></div>
         </div>
         <div class="card">
-          <h2>2D-Stroemungsbild (Blade-to-Blade)</h2>
-          <p class="hint">Stromlinien im Schaufelkanal, eingefaerbt nach Relativgeschwindigkeit w. Berechnet aus Kontinuitaet und dem Geschwindigkeitsdreieck (1D-Mittelstromlinie mit Querverteilung). Keine 3D-Navier-Stokes-Loesung.</p>
-          <svg id="flowfield-svg" viewBox="-200 -200 480 400" aria-label="Stroemungsbild"></svg>
-        </div>
-        <div class="card">
           <h2>2D-CFD-Simulation (Lattice-Boltzmann)</h2>
           <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen (D2Q9-BGK) im <strong>rotierenden Bezugssystem</strong> mit Zentrifugal- und Coriolis-Koerperkraeften (Shan-Chen-Schema). Eine Schaufelteilung wird auf einem periodischen Gitter geloest, das Ergebnis dreifach in die <strong>echte Kreissektor-Geometrie</strong> zwischen D1 und D2 abgebildet (Kuchenstueck). Anzeige zwischen Geschwindigkeit, Druck, Wirbelstaerke und Radialkomponente umschaltbar. ~ 2200 Iterationen direkt im Browser.</p>
           <div class="cfd-controls">
@@ -228,9 +223,21 @@
           <canvas id="cfd-canvas" width="640" height="360" class="cfd-canvas"></canvas>
         </div>
         <div class="card">
-          <h2>2D-Spannungsfeld &sigma;<sub>v</sub>(r)</h2>
-          <p class="hint">Vergleichsspannung im Querschnitt der Laufradscheibe, eingefaerbt nach Mises. Direkt aus der geschlossenen Timoshenko/Goodier-Loesung &mdash; rotationssymmetrisch und damit ohne 3D-FEM-Diskretisierung exakt darstellbar.</p>
-          <svg id="stressfield-svg" viewBox="-180 -180 460 380" aria-label="Spannungsfeld"></svg>
+          <h2>2D-CFD-Simulation Spiralgehaeuse</h2>
+          <p class="hint">Separater Lattice-Boltzmann-Loeser im <strong>Absolut-Bezugssystem</strong> fuer die Stroemung durch das Volute (Spiralgehaeuse). Geometrie nach Stepanoff mit Zunge bei &phi;=0, logarithmisch erweitertem Aussenrand und Druckstutzen. Eintritt: Geschwindigkeitsrandbedingung auf der D2-Innenflaeche mit den Komponenten c<sub>m2</sub> (radial) und c<sub>u2</sub> (tangential) aus der Auslegung. Anzeige zwischen Geschwindigkeit, Druck und Wirbelstaerke umschaltbar.</p>
+          <div class="cfd-controls">
+            <button id="volute-run" class="primary" type="button">Volute-Simulation starten</button>
+            <label class="field" style="flex:1; min-width: 180px">
+              <span>Visualisierung</span>
+              <select id="volute-mode">
+                <option value="velocity">Geschwindigkeit |c|</option>
+                <option value="pressure">Druck (Δp)</option>
+                <option value="vorticity">Wirbelstaerke ω<sub>z</sub></option>
+              </select>
+            </label>
+          </div>
+          <p id="volute-status" class="hint" style="margin-top:10px"></p>
+          <canvas id="volute-canvas" width="640" height="500" class="volute-canvas"></canvas>
         </div>
       </details>
 
@@ -291,6 +298,7 @@
   <script src="js/cfd-fem.js"></script>
   <script src="js/three-model.js"></script>
   <script src="js/cfd-lbm.js"></script>
+  <script src="js/cfd-volute.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
