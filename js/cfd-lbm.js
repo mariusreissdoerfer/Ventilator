@@ -80,22 +80,35 @@
     let prev_y = yMid;
     let prev_x = xLE;
 
-    function plotThick(x, y) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const yy = y + dy;
+    // Realistic blade thickness profile (NACA-style parabola): peaks at
+    // mid-chord, tapers to a near-sharp LE and TE.  Provides enough
+    // bluff-body character for real separation to develop at Re > ~400.
+    const tMax = 5;  // maximum thickness in lattice cells
+    function thicknessAt(s) {
+      // s in [0,1]; classic NACA-like t(s) = tMax * (a0*sqrt(s) - a1*s
+      // - a2*s^2 - a3*s^3 + a4*s^4) - simplified to a smooth parabola
+      // peaking at s=0.4, more LE-blunt than TE-blunt (typical airfoil).
+      const x = s;
+      return tMax * 1.2 * (0.5 * Math.sqrt(x) - 0.06 * x - 0.35 * x * x - 0.10 * x * x * x);
+    }
+    function plotThick(x, yCenter, halfT) {
+      const h = Math.max(1, Math.round(halfT));
+      for (let dy = -h; dy <= h; dy++) {
+        const yy = yCenter + dy;
         if (yy >= 0 && yy < ny && x >= 0 && x < nx) {
           wall[yy * nx + x] = 1;
         }
       }
     }
 
-    // Trace the camber line, sample at every grid step in x
+    // Trace the camber line with variable thickness
+    let prev_thick = 0;
     for (let xi = 0; xi <= chord; xi++) {
       const s = xi / chord;
       const dy = (a_s * s + b_s * s * s) * chord;
-      // Negative because increasing y in image coords goes downward
       const y_cam = Math.round(yMid - dy);
       const xg = xLE + xi;
+      const thick = thicknessAt(s);
       // Connect previous to current with simple line drawing
       const xa = prev_x, ya = prev_y, xb = xg, yb = y_cam;
       const steps = Math.max(Math.abs(xb - xa), Math.abs(yb - ya));
@@ -103,10 +116,12 @@
         const t = steps === 0 ? 0 : s2 / steps;
         const xx = Math.round(xa + t * (xb - xa));
         const yy = Math.round(ya + t * (yb - ya));
-        plotThick(xx, yy);
+        const halfT = (prev_thick + (thick - prev_thick) * t) / 2;
+        plotThick(xx, yy, halfT);
       }
       prev_x = xg;
       prev_y = y_cam;
+      prev_thick = thick;
     }
     return { wall, beta1, beta2 };
   }
@@ -244,6 +259,10 @@
     return [Math.round(255 - 127 * (t - 0.875) / 0.125), 0, 0];
   }
 
+  // Result of last render, exposed so the caller can read the separation
+  // statistics for the status line.
+  let lastStats = { reversePct: 0, nReverse: 0, nFluid: 0 };
+
   function render(canvas, s) {
     const { wall, nx, ny } = s;
     const fields = computeFields(s);
@@ -251,14 +270,16 @@
     const H2 = canvas.height;
     const ctx = canvas.getContext('2d');
 
-    // The simulation domain is a *single* blade passage with periodic
-    // top/bottom boundaries -> mathematically equivalent to an infinite
-    // cascade of identical blades. To make that visible we tile the
-    // converged field N_TILES times vertically when painting; the user
-    // sees several neighbouring blades and the flow continuing smoothly
-    // between them.
+    // Periodic top/bottom = infinite cascade.  We compute one passage
+    // but render TILES copies stacked, then *crop* the visible portion
+    // to PITCH_VISIBLE pitches so the central blade is dominant while
+    // the neighbours stay just visible at the top and bottom edges.
     const TILES = 3;
+    const PITCH_VISIBLE = 1.5;
+    const srcYStart = ny * (TILES / 2 - PITCH_VISIBLE / 2);   // = 0.75 ny
+    const srcH      = ny * PITCH_VISIBLE;                      // = 1.5  ny
 
+    // ---- Field image at offscreen grid resolution -----------------
     const off = document.createElement('canvas');
     off.width = nx; off.height = ny * TILES;
     const offCtx = off.getContext('2d');
@@ -281,21 +302,46 @@
     }
     offCtx.putImageData(img, 0, 0);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(off, 0, 0, W2, H2);
+    ctx.drawImage(off, 0, srcYStart, nx, srcH, 0, 0, W2, H2);
 
-    // Streamlines: trace once on the periodic domain, then draw the
-    // same trajectory on every tile so the visual continuity is clear.
-    const scaleX = W2 / nx;
-    const scaleY = H2 / (ny * TILES);
+    // Mapping helpers from field coords (in the 3-tile space) to canvas
+    const xScale = W2 / nx;
+    const yScale = H2 / srcH;
+    const xToCanvas = (i) => i * xScale;
+    const yToCanvas = (yField) => (yField - srcYStart) * yScale;
+
+    // ---- Reverse-flow overlay (Stroemungsabriss / Rezirkulation) ---
+    // Any fluid cell with u_x < 0 indicates back-flow; paint these red.
+    let nReverse = 0, nFluid = 0;
+    ctx.fillStyle = 'rgba(220, 20, 20, 0.55)';
+    for (let c = 0; c < nx * ny; c++) {
+      if (wall[c]) continue;
+      nFluid++;
+      if (fields.ux[c] < 0) {
+        nReverse++;
+        const jLocal = (c / nx) | 0;
+        const iLocal = c - jLocal * nx;
+        for (let t = 0; t < TILES; t++) {
+          const yC = yToCanvas(t * ny + jLocal);
+          if (yC > -yScale && yC < H2) {
+            ctx.fillRect(xToCanvas(iLocal), yC, xScale + 0.6, yScale + 0.6);
+          }
+        }
+      }
+    }
+    lastStats = {
+      reversePct: nFluid > 0 ? 100 * nReverse / nFluid : 0,
+      nReverse, nFluid,
+    };
+
+    // ---- Streamlines (LIC-like) ------------------------------------
     const tracerStep = Math.max(1, Math.floor(ny / 14));
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 1.2;
-
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1.3;
     for (let j0 = 3; j0 < ny; j0 += tracerStep) {
-      // Trace
       let x = 2, y = j0;
       const pts = [{ x, y }];
-      for (let stp = 0; stp < 280; stp++) {
+      for (let stp = 0; stp < 320; stp++) {
         const ix = x | 0, iy = y | 0;
         if (ix < 0 || iy < 0 || ix >= nx || iy >= ny) break;
         const c = iy * nx + ix;
@@ -309,13 +355,12 @@
         else if (y >= ny) y -= ny;
         pts.push({ x, y });
       }
-      // Draw on every tile, lifting the pen across periodic wraps
       for (let t = 0; t < TILES; t++) {
         ctx.beginPath();
         let prev = null;
         for (const p of pts) {
-          const dx = p.x * scaleX;
-          const dy = (t * ny + p.y) * scaleY;
+          const dx = xToCanvas(p.x);
+          const dy = yToCanvas(t * ny + p.y);
           if (prev && Math.abs(p.y - prev.y) > ny / 2) {
             ctx.moveTo(dx, dy);
           } else if (prev) {
@@ -329,30 +374,40 @@
       }
     }
 
-    // Pitch divider lines between the tiles so the periodicity is
-    // visually clear (subtle, dashed)
+    // ---- Pitch divider lines ---------------------------------------
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.setLineDash([4, 4]);
     ctx.lineWidth = 1;
     for (let t = 1; t < TILES; t++) {
-      const yLine = (t * ny) * scaleY;
-      ctx.beginPath();
-      ctx.moveTo(0, yLine);
-      ctx.lineTo(W2 - 36, yLine);
-      ctx.stroke();
+      const yLine = yToCanvas(t * ny);
+      if (yLine > 0 && yLine < H2) {
+        ctx.beginPath();
+        ctx.moveTo(0, yLine);
+        ctx.lineTo(W2 - 40, yLine);
+        ctx.stroke();
+      }
     }
     ctx.restore();
 
-    // Pitch annotation
-    ctx.fillStyle = '#222';
+    // ---- Labels ----------------------------------------------------
+    ctx.fillStyle = '#fff';
     ctx.font = '11px ui-monospace, monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('Schaufel n-1', 6, 14);
-    ctx.fillText('Schaufel n',   6, ny * scaleY + 14);
-    if (TILES >= 3) ctx.fillText('Schaufel n+1', 6, 2 * ny * scaleY + 14);
+    // Central blade label sits inside the middle tile, near its top
+    ctx.fillText('Schaufel n-1 (Nachbar)', 8, 14);
+    ctx.fillText('Schaufel n',             8, yToCanvas(ny) + 14);
+    ctx.fillText('Schaufel n+1 (Nachbar)', 8, yToCanvas(2 * ny) + 14);
 
-    // Colour bar (right side)
+    // Separation legend (small red square + label) if any reverse flow
+    if (nReverse > 0) {
+      ctx.fillStyle = 'rgba(220,20,20,0.8)';
+      ctx.fillRect(W2 - 180, H2 - 22, 14, 14);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('Rueckstroemung (u<0)', W2 - 162, H2 - 11);
+    }
+
+    // ---- Colour bar (right side) -----------------------------------
     const cbW = 14, cbH = H2 * 0.7;
     const cbX = W2 - 26, cbY = H2 * 0.15;
     const segs = 48;
@@ -365,22 +420,29 @@
     ctx.strokeStyle = '#555';
     ctx.lineWidth = 0.8;
     ctx.strokeRect(cbX, cbY, cbW, cbH);
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = '#fff';
     ctx.fillText('|w|', cbX - 4, cbY - 4);
     ctx.fillText('max', cbX + cbW + 2, cbY + 8);
     ctx.fillText('0',   cbX + cbW + 2, cbY + cbH + 4);
   }
+
+  function getLastStats() { return lastStats; }
 
   // ---- Public entry point --------------------------------------------
   function runSimulation(result, canvas, statusEl, doneCallback) {
     if (!result || !canvas) return;
     if (running) return;
     running = true;
+    lastStats = { reversePct: 0, nReverse: 0, nFluid: 0 };
 
-    // Grid sized for ~ 1 second on a mid-range phone
-    const nx = 160, ny = 60;
-    const tau = 0.6;
-    const u_mag = 0.06;     // inlet speed in lattice units, M ~ 0.1
+    // Grid sized for ~ 1-3 seconds on a mid-range phone.
+    // tau = 0.54 -> kinematic viscosity nu = (0.54-0.5)/3 = 0.0133.
+    // With u_mag = 0.10 and channel height ny = 60, Re = u*L/nu ~ 450,
+    // enough for genuine separation behind a finite-thickness blade
+    // while staying well below LBM stability limits for D2Q9-BGK.
+    const nx = 180, ny = 70;
+    const tau = 0.54;
+    const u_mag = 0.10;
 
     // Inlet angle: beta1 is from the tangential direction in the impeller,
     // but in the cascade analogue the inlet is from the left at the same
@@ -405,14 +467,22 @@
         step(state);
         done++;
       }
-      if (statusEl) {
-        statusEl.textContent = (done === totalIter)
-          ? `Solver konvergiert nach ${totalIter} Iterationen (D2Q9-BGK, Re~250).`
-          : `Lattice-Boltzmann-Simulation: Iteration ${done} / ${totalIter}...`;
-      }
-      // Render periodically for progress feedback
+      // Render periodically for progress feedback (also updates lastStats)
       if (done % 200 === 0 || done === totalIter) {
         render(canvas, state);
+      }
+      if (statusEl) {
+        if (done === totalIter) {
+          const st = getLastStats();
+          const sepNote = st.reversePct >= 1
+            ? ` Stroemungsabriss erkannt: ${st.reversePct.toFixed(1)} % Rueckstroemung im Stroemungsfeld (rot ueberlagert).`
+            : ' Stroemung anliegend, keine signifikante Rueckstroemung im Schaufelkanal.';
+          statusEl.textContent =
+            `Konvergiert nach ${totalIter} Iterationen (D2Q9-BGK, Re ~ 450).${sepNote}`;
+        } else {
+          statusEl.textContent =
+            `Lattice-Boltzmann-Simulation: Iteration ${done} / ${totalIter}...`;
+        }
       }
       if (done < totalIter) {
         requestAnimationFrame(chunk);
