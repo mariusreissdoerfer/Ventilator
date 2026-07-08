@@ -437,3 +437,105 @@ table.data td { font-family: var(--mono); }
 
 /* ---------- prevent horizontal scroll ---------- */
 html, body { overflow-x: hidden; }
+
+/* ---------- traffic-light status banner ---------- */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.status-banner:empty { display: none; }
+.banner-icon { font-size: 26px; line-height: 1; flex: none; }
+.banner-title { font-weight: 700; font-size: 16px; }
+.banner-sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.banner-good { background: #e6f4e8; border-color: #b5dcba; }
+.banner-warn { background: #fdf3e3; border-color: #ecd3a3; }
+.banner-bad  { background: #fbe9e7; border-color: #eec2bd; }
+
+/* ---------- result actions ---------- */
+.result-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+button.ghost {
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.ghost:active { background: var(--surface-2); }
+@media (hover: hover) { button.ghost:hover { background: var(--surface-2); } }
+
+/* ---------- input validation ---------- */
+.field input.invalid {
+  border-color: var(--bad);
+  outline: 1px solid var(--bad);
+  outline-offset: -1px;
+}
+.field-error {
+  display: block;
+  color: var(--bad);
+  font-size: 11px;
+  margin-top: 3px;
+  min-height: 0;
+}
+.field-error:empty { display: none; }
+
+/* ---------- notes with icons ---------- */
+#notes { list-style: none; padding-left: 0; }
+#notes li {
+  padding: 6px 0 6px 0;
+  border-bottom: 1px solid var(--surface-2);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+#notes li:last-child { border-bottom: none; }
+.note-icon { flex: none; font-size: 13px; }
+#notes .note-bad  { color: #7a1f19; }
+#notes .note-warn { color: #7a4a00; }
+#notes .note-info { color: var(--text); }
+#notes .note-ok   { color: var(--good); }
+
+/* ---------- print / PDF Datenblatt ---------- */
+@media print {
+  .topbar { padding: 8px 0; box-shadow: none; }
+  .tabs, .result-actions, .panel-inputs, #backToInputs,
+  .cfd-controls, .inputs-toggle { display: none !important; }
+  .layout { display: block; margin: 0; padding: 0; max-width: none; }
+  .results { display: block !important; }
+  .section {
+    box-shadow: none;
+    border: none;
+    margin-bottom: 8px;
+    break-inside: auto;
+  }
+  .section-head {
+    background: none;
+    border-bottom: 2px solid #333;
+    font-size: 15px;
+    padding: 6px 0;
+  }
+  .section-head::before { display: none; }
+  .card {
+    box-shadow: none;
+    break-inside: avoid;
+    padding: 8px 0;
+  }
+  .card .hint { font-size: 10px; }
+  .status-banner { break-inside: avoid; }
+  .kpi { border: 1px solid #ccc; }
+  .three-container { display: none; }  /* WebGL doesn't print */
+  svg, canvas { max-height: 480px; }
+}

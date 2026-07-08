@@ -12,11 +12,23 @@ const $ = (id) => document.getElementById(id);
 // ---------- preset handling ----------
 function fillPresetSelect() {
   const sel = $('preset');
-  CEMENT_PRESETS.forEach((p) => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.name;
-    sel.appendChild(opt);
+  const groups = [
+    { label: 'Einflutig (Standard)', match: (p) => (p.arrangement || 'SISW') === 'SISW' && p.id !== 'custom' },
+    { label: 'Doppelflutig (Großanlagen)', match: (p) => p.arrangement === 'DIDW' },
+    { label: 'Frei', match: (p) => p.id === 'custom' },
+  ];
+  groups.forEach((g) => {
+    const items = CEMENT_PRESETS.filter(g.match);
+    if (!items.length) return;
+    const og = document.createElement('optgroup');
+    og.label = g.label;
+    items.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
   });
   sel.value = 'kiln-id';
   applyPreset('kiln-id');
@@ -37,17 +49,50 @@ function applyPreset(id) {
 }
 
 // ---------- formatting helpers ----------
-const fmt = (v, digits = 2) =>
-  (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(digits))
-    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+// German number style: decimal comma, space-grouped thousands (DIN 1333).
+// Grouping applies to the integer part only.
+const fmt = (v, digits = 2) => {
+  const raw = Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(digits);
+  const parts = raw.split('.');
+  const grouped = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return parts.length > 1 ? grouped + ',' + parts[1] : grouped;
+};
 const fmtMm = (m) => fmt(m * 1000, 0) + ' mm';
 const fmtKw = (w) => fmt(w / 1000, 1) + ' kW';
 
 // Latest sizeFan result, used by the on-demand CFD simulation.
 let lastResult = null;
 
+// ---------- input validation ----------
+// Plausible ranges for cement-plant process fans. Values outside are
+// flagged but do not block the calculation (engineering judgement wins).
+const INPUT_LIMITS = {
+  Q:    { min: 1000,  max: 3000000, label: 'Typisch 1.000 &ndash; 3.000.000 m&sup3;/h' },
+  dp:   { min: 200,   max: 20000,   label: 'Typisch 200 &ndash; 20.000 Pa (einstufig)' },
+  T:    { min: -20,   max: 500,     label: 'Typisch -20 &ndash; 500 &deg;C' },
+  p:    { min: 70000, max: 110000,  label: 'Typisch 70.000 &ndash; 110.000 Pa' },
+  dust: { min: 0,     max: 500,     label: 'Typisch 0 &ndash; 500 g/m&sup3;' },
+  n:    { min: 200,   max: 3600,    label: 'Typisch 200 &ndash; 3.600 1/min' },
+};
+
+function validateInputs() {
+  let allValid = true;
+  for (const [id, lim] of Object.entries(INPUT_LIMITS)) {
+    const input = $(id);
+    const errEl = $('err-' + id);
+    if (!input) continue;
+    const v = +input.value;
+    const bad = input.value === '' || !isFinite(v) || v < lim.min || v > lim.max;
+    input.classList.toggle('invalid', bad);
+    if (errEl) errEl.innerHTML = bad ? lim.label : '';
+    if (bad) allValid = false;
+  }
+  return allValid;
+}
+
 // ---------- run ----------
 function runCalc() {
+  validateInputs();   // markiert Felder, blockiert aber nicht
   const inp = {
     Q_m3h: +$('Q').value,
     dp_total_Pa: +$('dp').value,
@@ -59,6 +104,13 @@ function runCalc() {
     slipModel: $('slipModel').value,
     arrangement: $('arrangement') ? $('arrangement').value : 'SISW',
   };
+  // Hard guard: refuse to compute on nonsensical values that would
+  // produce NaN/Infinity everywhere.
+  if (!(inp.Q_m3h > 0) || !(inp.dp_total_Pa > 0) || !(inp.n_rpm > 0) ||
+      !(inp.pressurePa > 0) || inp.tempC <= -273) {
+    $('summary').innerHTML = `<div class="kpi bad"><div class="label">Eingabe unvollst&auml;ndig</div><div class="value" style="font-size:14px">Bitte g&uuml;ltige Werte f&uuml;r Q, &Delta;p, n, p und T eingeben.</div></div>`;
+    return;
+  }
   let res;
   try {
     res = FanDesign.sizeFan(inp);
@@ -92,7 +144,9 @@ function runCalc() {
   if (window.ThreeModel) window.ThreeModel.update(res);
   lastResult = res;
   renderMaterials(res);
-  renderNotes(res, det, ver);
+  const findings = collectFindings(res, det, ver);
+  renderNotes(findings);
+  renderStatusBanner(findings);
 }
 
 // ---------- summary KPIs ----------
@@ -821,69 +875,113 @@ function renderMaterials(r) {
   `;
 }
 
-// ---------- notes ----------
-function renderNotes(r, det, ver) {
+// ---------- findings (notes + status banner) ----------
+// Collect all findings as {level: 'bad'|'warn'|'info', html} so the
+// notes list and the traffic-light banner stay consistent.
+function collectFindings(r, det, ver) {
   const preset = CEMENT_PRESETS.find((p) => p.id === $('preset').value);
-  const ul = $('notes');
-  ul.innerHTML = '';
-  const notes = [...(preset?.notes ?? [])];
+  const out = [];
+  const add = (level, html) => out.push({ level, html });
 
-  // Detailed-analysis warnings
+  // Detailed-analysis checks
   if (det && det.strength && !det.strength.pass) {
-    notes.push(`<strong style="color:var(--bad)">Festigkeit:</strong> SF = ${det.strength.safetyFactor.toFixed(2)} &lt; 1.5 &mdash; Wandstaerken erhoehen, Drehzahl reduzieren oder hoeherfesten Werkstoff waehlen.`);
+    add('bad', `<strong>Festigkeit:</strong> SF = ${det.strength.safetyFactor.toFixed(2)} &lt; 1.5 &mdash; Wandst&auml;rken erh&ouml;hen, Drehzahl reduzieren oder h&ouml;herfesten Werkstoff w&auml;hlen.`);
   }
   if (det && det.rotorDyn && !det.rotorDyn.pass) {
-    notes.push(`<strong style="color:var(--bad)">Rotordynamik (1D):</strong> Betriebsdrehzahl liegt im kritischen Bereich (${det.rotorDyn.regime}). Lagerabstand verkuerzen oder Wellendurchmesser erhoehen.`);
+    add('bad', `<strong>Rotordynamik (1D):</strong> Betriebsdrehzahl liegt im kritischen Bereich (${det.rotorDyn.regime}). Lagerabstand verk&uuml;rzen oder Wellendurchmesser erh&ouml;hen.`);
   }
   if (det && det.losses && det.losses.deHaller < 0.72) {
-    notes.push(`<strong style="color:var(--warn)">Aerodynamik:</strong> de-Haller-Kriterium w2/w1 = ${det.losses.deHaller.toFixed(2)} &lt; 0.72 &mdash; Gefahr der Stroemungsabloesung im Schaufelkanal. b2 erhoehen oder beta2 anpassen.`);
+    add('warn', `<strong>Aerodynamik:</strong> de-Haller-Kriterium w2/w1 = ${det.losses.deHaller.toFixed(2)} &lt; 0.72 &mdash; Gefahr der Str&ouml;mungsabl&ouml;sung im Schaufelkanal. b2 erh&ouml;hen oder &beta;2 anpassen.`);
   }
 
-  // Verification warnings
+  // Verification checks
   if (ver && ver.rotorFEM && !ver.rotorFEM.pass) {
     const offending = ver.rotorFEM.margins
       .map((mg, i) => mg.pass ? null : `${i + 1}. (${mg.n_crit_rpm.toFixed(0)} 1/min, &Delta; = ${mg.margin_pct.toFixed(0)} %)`)
       .filter(Boolean).join(', ');
-    notes.push(`<strong style="color:var(--bad)">Rotor-FEM:</strong> Mehrfreiheitsgrad-Modell zeigt zu geringen Abstand zu kritischen Drehzahlen: ${offending}. API 673 fordert &ge; 15 % Trennung.`);
+    add('bad', `<strong>Rotor-FEM:</strong> Zu geringer Abstand zu kritischen Drehzahlen: ${offending}. API 673 fordert &ge; 15 % Trennung.`);
   }
   if (ver && ver.offDesign && !ver.offDesign.pass) {
-    notes.push(`<strong style="color:var(--warn)">Off-Design:</strong> Stall-Marge ${ver.offDesign.stallMargin_pct.toFixed(0)} % &lt; 10 % &mdash; Auslegungspunkt zu nahe am Surge. Drehzahlregelung und Mindestlast-Klappe vorsehen.`);
+    add('warn', `<strong>Off-Design:</strong> Stall-Marge ${ver.offDesign.stallMargin_pct.toFixed(0)} % &lt; 10 % &mdash; Auslegungspunkt zu nahe am Surge. Drehzahlregelung und Mindestlast-Klappe vorsehen.`);
   }
   if (ver && ver.diskProfile && ver.diskProfile.peak) {
     const SF_disk = ver.diskProfile.Rp02_T_MPa / ver.diskProfile.peak.sigma_v_MPa;
     if (SF_disk < 1.5) {
-      notes.push(`<strong style="color:var(--bad)">&sigma;(r)-Verifikation:</strong> Maximale Vergleichsspannung am Innenrand ${ver.diskProfile.peak.sigma_v_MPa.toFixed(0)} N/mm&sup2; ergibt SF = ${SF_disk.toFixed(2)}. Bohrungsbereich konstruktiv verstaerken (Verstaerkungsring, Hyperbel-Profil).`);
+      add('bad', `<strong>&sigma;(r)-Verifikation:</strong> Vergleichsspannung am Innenrand ${ver.diskProfile.peak.sigma_v_MPa.toFixed(0)} N/mm&sup2; ergibt SF = ${SF_disk.toFixed(2)}. Bohrungsbereich konstruktiv verst&auml;rken (Verst&auml;rkungsring, Hyperbel-Profil).`);
     }
   }
 
-  // Add automatically generated warnings
+  // General plausibility checks
   if (r.aerodynamics.eta_total < 0.7) {
-    notes.push('Wirkungsgrad < 70 % &mdash; staubbedingte Einbussen, Profilschaufel nicht wirtschaftlich.');
+    add('warn', 'Wirkungsgrad &lt; 70 % &mdash; staubbedingte Einbu&szlig;en, Profilschaufel nicht wirtschaftlich.');
   }
   if (r.state.sigma < 0.2) {
-    notes.push('Sehr kleine spez. Drehzahl &mdash; Hochdruck-Anwendung. Mehrstufige Loesung pruefen.');
+    add('warn', 'Sehr kleine spez. Drehzahl &mdash; Hochdruck-Anwendung. Mehrstufige L&ouml;sung pr&uuml;fen.');
   }
   if (r.state.sigma > 1.0) {
-    notes.push('Sehr hohe spez. Drehzahl &mdash; halbaxiale Maschine wirtschaftlicher.');
+    add('warn', 'Sehr hohe spez. Drehzahl &mdash; halbaxiale Maschine wirtschaftlicher. Bei hohem Q ggf. doppelflutige Bauart (DIDW) w&auml;hlen.');
   }
   if (r.geometry.b2_m / r.geometry.D2_m < 0.05) {
-    notes.push('Schmales Laufrad (b2/D2 &lt; 0.05) &mdash; reibungsdominiert, kleiner Wirkungsgrad.');
+    add('warn', 'Schmales Laufrad (b2/D2 &lt; 0.05) &mdash; reibungsdominiert, kleiner Wirkungsgrad.');
   }
   if (r.inputs.tempC > 300) {
-    notes.push('Heissgasbetrieb &mdash; Wellendichtung mit Sperrluft, Lagerkuehlung vorsehen.');
+    add('info', 'Hei&szlig;gasbetrieb &mdash; Wellendichtung mit Sperrluft, Lagerk&uuml;hlung vorsehen.');
   }
   if ((r.inputs.dustLoading ?? 0) > 30) {
-    notes.push('Hohe Staubbeladung &mdash; Anbackungen pruefen, ggf. Klopfwerk oder Spuelluft.');
+    add('info', 'Hohe Staubbeladung &mdash; Anbackungen pr&uuml;fen, ggf. Klopfwerk oder Sp&uuml;lluft.');
   }
   if (preset?.id === 'coal-mill') {
-    notes.push('ATEX-konforme Ausfuehrung, antistatische Lackierung, Temperaturueberwachung.');
+    add('info', 'ATEX-konforme Ausf&uuml;hrung, antistatische Lackierung, Temperatur&uuml;berwachung.');
   }
+  // Preset application notes always last (informational)
+  (preset?.notes ?? []).forEach((n) => add('info', n));
 
-  notes.forEach((n) => {
+  return out;
+}
+
+const LEVEL_ICON = { bad: '&#10060;', warn: '&#9888;&#65039;', info: '&#8505;&#65039;' };
+
+function renderNotes(findings) {
+  const ul = $('notes');
+  ul.innerHTML = '';
+  findings.forEach((f) => {
     const li = document.createElement('li');
-    li.innerHTML = n;
+    li.className = `note-${f.level}`;
+    li.innerHTML = `<span class="note-icon">${LEVEL_ICON[f.level]}</span> ${f.html}`;
     ul.appendChild(li);
   });
+  if (!findings.length) {
+    const li = document.createElement('li');
+    li.className = 'note-ok';
+    li.innerHTML = '&#9989; Keine Auff&auml;lligkeiten &mdash; alle Pr&uuml;fungen bestanden.';
+    ul.appendChild(li);
+  }
+}
+
+// ---------- traffic-light status banner ----------
+function renderStatusBanner(findings) {
+  const el = $('status-banner');
+  if (!el) return;
+  const nBad  = findings.filter((f) => f.level === 'bad').length;
+  const nWarn = findings.filter((f) => f.level === 'warn').length;
+  let cls, icon, title, sub;
+  if (nBad > 0) {
+    cls = 'banner-bad'; icon = '&#128308;';
+    title = `Auslegung kritisch &mdash; ${nBad} ${nBad === 1 ? 'Befund' : 'Befunde'}`;
+    sub = 'Drehzahl, Werkstoff oder Bauart anpassen. Details unter Hinweise.';
+  } else if (nWarn > 0) {
+    cls = 'banner-warn'; icon = '&#128993;';
+    title = `Auslegung mit ${nWarn} ${nWarn === 1 ? 'Warnung' : 'Warnungen'}`;
+    sub = 'Machbar, aber Optimierungspotenzial. Details unter Hinweise.';
+  } else {
+    cls = 'banner-good'; icon = '&#128994;';
+    title = 'Auslegung plausibel';
+    sub = 'Alle Festigkeits-, Rotordynamik- und Aerodynamik-Pr&uuml;fungen bestanden.';
+  }
+  el.className = `status-banner ${cls}`;
+  el.innerHTML = `<span class="banner-icon">${icon}</span>
+    <div><div class="banner-title">${title}</div>
+    <div class="banner-sub">${sub}</div></div>`;
 }
 
 // ---------- live recalc with debounce ----------
@@ -989,6 +1087,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Print / PDF: open all sections so the full Datenblatt prints,
+  // restore the previous open/closed state afterwards.
+  const printBtn = $('print-btn');
+  if (printBtn) {
+    printBtn.addEventListener('click', () => {
+      const sections = document.querySelectorAll('details.section');
+      const prevState = Array.from(sections).map((s) => s.open);
+      sections.forEach((s) => { s.open = true; });
+      const restore = () => {
+        sections.forEach((s, i) => { s.open = prevState[i]; });
+        window.removeEventListener('afterprint', restore);
+      };
+      window.addEventListener('afterprint', restore);
+      window.print();
+    });
+  }
+
+  // Placeholder text on the CFD canvases until the first run
+  drawCanvasPlaceholder($('cfd-canvas'),
+    'Noch keine Simulation — ▶ Simulation starten drücken');
+  drawCanvasPlaceholder($('volute-canvas'),
+    'Noch keine Simulation — ▶ Simulation starten drücken');
+
   // initial calculation
   runCalc();
 });
+
+// ---------- canvas placeholder ----------
+function drawCanvasPlaceholder(canvas, text) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f0f2f5';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#8a90a0';
+  ctx.font = '15px -apple-system, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+}

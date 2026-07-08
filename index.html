@@ -36,31 +36,37 @@
           <span>Volumenstrom Q</span>
           <input type="number" id="Q" step="100" min="100" inputmode="numeric" autocomplete="off" />
           <em class="unit">m&sup3;/h</em>
+          <small class="field-error" id="err-Q"></small>
         </label>
         <label class="field">
-          <span>Druckerhoehung &Delta;p<sub>t</sub></span>
+          <span>Druckerh&ouml;hung &Delta;p<sub>t</sub></span>
           <input type="number" id="dp" step="50" min="50" inputmode="numeric" autocomplete="off" />
           <em class="unit">Pa</em>
+          <small class="field-error" id="err-dp"></small>
         </label>
         <label class="field">
           <span>Gastemperatur T</span>
           <input type="number" id="T" step="1" inputmode="numeric" autocomplete="off" />
           <em class="unit">&deg;C</em>
+          <small class="field-error" id="err-T"></small>
         </label>
         <label class="field">
           <span>Umgebungsdruck p</span>
           <input type="number" id="p" step="100" inputmode="numeric" autocomplete="off" />
           <em class="unit">Pa</em>
+          <small class="field-error" id="err-p"></small>
         </label>
         <label class="field">
           <span>Staubbeladung</span>
           <input type="number" id="dust" step="1" min="0" inputmode="decimal" autocomplete="off" />
           <em class="unit">g/m&sup3;</em>
+          <small class="field-error" id="err-dust"></small>
         </label>
         <label class="field">
           <span>Drehzahl n</span>
           <input type="number" id="n" step="5" min="100" inputmode="numeric" autocomplete="off" />
           <em class="unit">1/min</em>
+          <small class="field-error" id="err-n"></small>
         </label>
       </div>
 
@@ -72,18 +78,18 @@
           <option value="DIDW">Doppelflutig (DIDW)</option>
         </select>
       </label>
-      <p class="hint">Doppelflutig: zwei Laufradhaelften back-to-back, jede Seite foerdert Q/2 bei voller Druckerhoehung. Standard fuer sehr hohe Volumenstroeme oder wenn ein einflutiger Fan einen unverhaeltnismaessigen D2 ergaebe.</p>
+      <p class="hint">Doppelflutig: zwei Laufradh&auml;lften back-to-back, jede Seite f&ouml;rdert Q/2 bei voller Druckerh&ouml;hung. Standard f&uuml;r sehr hohe Volumenstr&ouml;me.</p>
 
       <h2>4. Schaufeltyp</h2>
       <label class="field">
         <span>Schaufelform</span>
         <select id="bladeType">
           <option value="auto">Automatisch (nach Cordier)</option>
-          <option value="backward-curved-airfoil">Rueckwaerts gekruemmt, Profil</option>
-          <option value="backward-curved">Rueckwaerts gekruemmt</option>
-          <option value="radial-curved">Radial gekruemmt</option>
+          <option value="backward-curved-airfoil">R&uuml;ckw&auml;rts gekr&uuml;mmt, Profil</option>
+          <option value="backward-curved">R&uuml;ckw&auml;rts gekr&uuml;mmt</option>
+          <option value="radial-curved">Radial gekr&uuml;mmt</option>
           <option value="radial-straight">Radial gerade (Paddelrad)</option>
-          <option value="forward-curved">Vorwaerts gekruemmt</option>
+          <option value="forward-curved">Vorw&auml;rts gekr&uuml;mmt</option>
         </select>
       </label>
       <label class="field">
@@ -100,16 +106,23 @@
     <!-- ============== RESULTS ============== -->
     <section class="results" id="results" role="tabpanel" aria-labelledby="tab-results">
 
+      <!-- Ampel-Statusbanner -->
+      <div id="status-banner" class="status-banner" role="status"></div>
+
+      <div class="result-actions">
+        <button id="print-btn" class="ghost" type="button">&#128196; Datenblatt drucken / PDF</button>
+      </div>
+
       <details class="section" open>
-        <summary class="section-head">Ergebnis-Ueberblick</summary>
+        <summary class="section-head">Ergebnis-&Uuml;berblick</summary>
         <div class="card">
           <h2>Auslegungsergebnis</h2>
-          <p class="hint">Hauptkennzahlen: spez. Drehzahl (Cordier), Laufradgroessen, Wirkungsgrad, Leistung. Diese Zahlen entscheiden, ob die Maschine wirtschaftlich baubar ist und Standard-Motor / -Werkstoff ausreichen.</p>
+          <p class="hint">Hauptkennzahlen: spez. Drehzahl (Cordier), Laufradgr&ouml;&szlig;en, Wirkungsgrad, Leistung. Diese Zahlen entscheiden, ob die Maschine wirtschaftlich baubar ist und Standard-Motor / -Werkstoff ausreichen.</p>
           <div id="summary" class="summary"></div>
         </div>
         <div class="card">
           <h2>Hinweise</h2>
-          <p class="hint">Automatische Plausibilitaetspruefungen aus allen Modulen &mdash; Festigkeit (FKM, AD 2000), Rotordynamik (API 673), Aerodynamik (de Haller, Stall-Marge). Rote Befunde: Auslegungspunkt ueberarbeiten, bevor Stahl bestellt wird.</p>
+          <p class="hint">Automatische Plausibilit&auml;tspr&uuml;fungen aus allen Modulen &mdash; Festigkeit (FKM, AD 2000), Rotordynamik (API 673), Aerodynamik (de Haller, Stall-Marge). Rote Befunde: Auslegungspunkt &uuml;berarbeiten, bevor Stahl bestellt wird.</p>
           <ul id="notes"></ul>
         </div>
       </details>
@@ -118,7 +131,7 @@
         <summary class="section-head">Aerodynamik &amp; Kennfeld</summary>
         <div class="card">
           <h2>Geometrie</h2>
-          <p class="hint">Hauptabmessungen des Laufrads. D2 aus dem Cordier-Diagramm (&sigma;, &delta;), D1/D2 nach Bommes, b2 aus Kontinuitaet, Schaufelzahl nach Pfleiderer. Diese Masse werden spaeter zur Fertigungszeichnung.</p>
+          <p class="hint">Hauptabmessungen des Laufrads. D2 aus dem Cordier-Diagramm (&sigma;, &delta;), D1/D2 nach Bommes, b2 aus Kontinuit&auml;t, Schaufelzahl nach Pfleiderer. Diese Ma&szlig;e werden sp&auml;ter zur Fertigungszeichnung.</p>
           <div class="geom-row">
             <div id="geom-table"></div>
             <svg id="geom-svg" viewBox="-180 -180 360 360" aria-label="Laufradgeometrie"></svg>
@@ -126,25 +139,25 @@
         </div>
         <div class="card">
           <h2>Geschwindigkeitsdreieck (Austritt)</h2>
-          <p class="hint">Euler-Gleichung der Stroemungsmaschinen mit Slip-Korrektur nach Wiesner (1967) bzw. Stodola (1924). u<sub>2</sub>, c<sub>2</sub>, w<sub>2</sub> sind die Grundlage jeder weiteren Bewertung &mdash; von Energieumsetzung bis Schaufelbelastung.</p>
+          <p class="hint">Euler-Gleichung der Str&ouml;mungsmaschinen mit Slip-Korrektur nach Wiesner (1967) bzw. Stodola (1924). u<sub>2</sub>, c<sub>2</sub>, w<sub>2</sub> sind die Grundlage jeder weiteren Bewertung &mdash; von Energieumsetzung bis Schaufelbelastung.</p>
           <svg id="vt-svg" viewBox="-20 -20 320 200" aria-label="Geschwindigkeitsdreieck"></svg>
           <div id="vt-table"></div>
         </div>
         <div class="card">
           <h2>Kennlinie</h2>
-          <p class="hint">&Delta;p(Q) und P(Q) um den Auslegungspunkt. Schaufeltyp bestimmt die Steigung &mdash; rueckwaerts gekruemmt faellt, vorwaerts steigt. Wichtig fuer Regelverhalten und Stabilitaet bei Lastwechsel.</p>
+          <p class="hint">&Delta;p(Q) und P(Q) um den Auslegungspunkt. Schaufeltyp bestimmt die Steigung &mdash; r&uuml;ckw&auml;rts gekr&uuml;mmt f&auml;llt, vorw&auml;rts steigt. Wichtig f&uuml;r Regelverhalten und Stabilit&auml;t bei Lastwechsel.</p>
           <svg id="curve-svg" viewBox="0 0 600 320" aria-label="Kennlinie"></svg>
         </div>
         <div class="card">
-          <h2>Verlustaufteilung (1D-Stroemungsrechnung)</h2>
-          <p class="hint">Mehrkomponenten-Verlustmodell nach Aungier / Cumpsty: Wandreibung (Blasius), Diffusion (de Haller), Inzidenz, Volutenverlust (Pfleiderer), Radseitenreibung (Daily &amp; Nece), Spaltverlust. Liefert den ausgerechneten &eta;<sub>total</sub> &mdash; kein empirischer Schaetzwert.</p>
+          <h2>Verlustaufteilung (1D-Str&ouml;mungsrechnung)</h2>
+          <p class="hint">Mehrkomponenten-Verlustmodell nach Aungier / Cumpsty: Wandreibung (Blasius), Diffusion (de Haller), Inzidenz, Volutenverlust (Pfleiderer), Radseitenreibung (Daily &amp; Nece), Spaltverlust. Liefert den ausgerechneten &eta;<sub>total</sub> &mdash; kein empirischer Sch&auml;tzwert.</p>
           <div id="losses-summary" class="summary"></div>
           <svg id="losses-svg" viewBox="0 0 600 120" aria-label="Verlustaufteilung"></svg>
           <div id="losses-table"></div>
         </div>
         <div class="card">
           <h2>Off-Design-Kennfeld</h2>
-          <p class="hint">Verlustmodell ausgewertet ueber 0.4..1.5 Q<sub>design</sub>. Identifiziert Surge-Linie (lokales &Delta;p-Maximum), Best Efficiency Point und Stall-Marge nach API 673 (&ge; 10 %). Basis fuer Drehzahlregelung und Mindestlast-Klappen.</p>
+          <p class="hint">Verlustmodell ausgewertet &uuml;ber 0.4..1.5 Q<sub>design</sub>. Identifiziert Surge-Linie (lokales &Delta;p-Maximum), Best Efficiency Point und Stall-Marge nach API 673 (&ge; 10 %). Basis f&uuml;r Drehzahlregelung und Mindestlast-Klappen.</p>
           <div id="offdesign-summary" class="summary"></div>
           <svg id="offdesign-svg" viewBox="0 0 600 360" aria-label="Off-Design-Kennfeld"></svg>
         </div>
@@ -160,13 +173,13 @@
         </div>
         <div class="card">
           <h2>Spannungsverteilung &sigma;(r)</h2>
-          <p class="hint">Geschlossene Loesung &sigma;<sub>r</sub>(r), &sigma;<sub>&theta;</sub>(r), &sigma;<sub>v</sub>(r) entlang Radius. Zeigt nicht nur den Maximalwert, sondern wo auf der Scheibe die Spannung kritisch wird &mdash; entscheidend fuer konstruktive Verstaerkung am Bohrungsbereich.</p>
+          <p class="hint">Geschlossene L&ouml;sung &sigma;<sub>r</sub>(r), &sigma;<sub>&theta;</sub>(r), &sigma;<sub>v</sub>(r) entlang Radius. Zeigt nicht nur den Maximalwert, sondern wo auf der Scheibe die Spannung kritisch wird &mdash; entscheidend f&uuml;r konstruktive Verst&auml;rkung am Bohrungsbereich.</p>
           <div id="diskprofile-summary" class="summary"></div>
           <svg id="diskprofile-svg" viewBox="0 0 600 280" aria-label="Spannungsverlauf"></svg>
         </div>
         <div class="card">
           <h2>Rotordynamik &mdash; biegekritische Drehzahl (1D)</h2>
-          <p class="hint">Jeffcott-Modell: Welle als Biegebalken, Laufrad als zentrierte Masse zwischen den Lagern. Erste biegekritische Drehzahl plus Lavalbereich-Klassifizierung. Erste Plausibilitaetspruefung vor dem detaillierten FEM.</p>
+          <p class="hint">Jeffcott-Modell: Welle als Biegebalken, Laufrad als zentrierte Masse zwischen den Lagern. Erste biegekritische Drehzahl plus Lavalbereich-Klassifizierung. Erste Plausibilit&auml;tspr&uuml;fung vor dem detaillierten FEM.</p>
           <div id="rotor-summary" class="summary"></div>
           <div id="rotor-table"></div>
         </div>
@@ -183,38 +196,38 @@
       <details class="section">
         <summary class="section-head">Konstruktion &amp; Werkstoff</summary>
         <div class="card">
-          <h2>Spiralgehaeuse (nach Stepanoff)</h2>
-          <p class="hint">Stepanoff-Methode mit konstanter mittlerer Volutengeschwindigkeit c<sub>3</sub> &asymp; 0.5&middot;u<sub>2</sub>. 8 Querschnitte alle 45&deg;, Zungenabstand 5 % von D2. Definiert die Bauform des Gehaeuses und beeinflusst Volutenverluste.</p>
+          <h2>Spiralgeh&auml;use (nach Stepanoff)</h2>
+          <p class="hint">Stepanoff-Methode mit konstanter mittlerer Volutengeschwindigkeit c<sub>3</sub> &asymp; 0.5&middot;u<sub>2</sub>. 8 Querschnitte alle 45&deg;, Zungenabstand 5 % von D2. Definiert die Bauform des Geh&auml;uses und beeinflusst Volutenverluste.</p>
           <div class="geom-row">
             <div id="volute-table"></div>
             <svg id="volute-svg" viewBox="-180 -180 360 360" aria-label="Spiralgehaeuse"></svg>
           </div>
         </div>
         <div class="card">
-          <h2>Werkstoff &amp; Verschleissschutz</h2>
-          <p class="hint">Werkstoffwahl nach Temperatur, Staubbeladung und u<sub>2</sub>: DIN EN 10025/10028 fuer Staehle, SSAB Hardox fuer Verschleissbleche. Verschleissschutz nach VDZ-Merkblatt M-VT 4 (Hardox, Cr-Carbid CCO, Keramik, HVOF). Bestimmt Standzeit und Wartungskosten.</p>
+          <h2>Werkstoff &amp; Verschlei&szlig;schutz</h2>
+          <p class="hint">Werkstoffwahl nach Temperatur, Staubbeladung und u<sub>2</sub>: DIN EN 10025/10028 f&uuml;r St&auml;hle, SSAB Hardox f&uuml;r Verschlei&szlig;bleche. Verschlei&szlig;schutz nach VDZ-Merkblatt M-VT 4 (Hardox, Cr-Carbid CCO, Keramik, HVOF). Bestimmt Standzeit und Wartungskosten.</p>
           <div id="materials"></div>
         </div>
       </details>
 
       <details class="section">
-        <summary class="section-head">Visualisierung (2D / 3D)</summary>
+        <summary class="section-head">Simulation (CFD / 3D)</summary>
         <div class="card">
           <h2>3D-Modell des Ventilators</h2>
           <p class="hint">Prozedurale Geometrie aus den Auslegungs-Parametern: Z Schaufeln als logarithmische Spirale, Trag- und Deckscheibe, Nabe und Welle. Drehen mit einem Finger / Maus, Zoom per Pinch / Scrollrad.</p>
           <div id="three-container" class="three-container"></div>
         </div>
         <div class="card">
-          <h2>2D-CFD-Simulation (Lattice-Boltzmann)</h2>
-          <p class="hint">Numerischer Loeser fuer die inkompressiblen Navier-Stokes-Gleichungen (D2Q9-BGK) im <strong>rotierenden Bezugssystem</strong> mit Zentrifugal- und Coriolis-Koerperkraeften (Shan-Chen-Schema). Eine Schaufelteilung wird auf einem periodischen Gitter geloest, das Ergebnis dreifach in die <strong>echte Kreissektor-Geometrie</strong> zwischen D1 und D2 abgebildet (Kuchenstueck). Anzeige zwischen Geschwindigkeit, Druck, Wirbelstaerke und Radialkomponente umschaltbar. ~ 2200 Iterationen direkt im Browser.</p>
+          <h2>CFD Schaufelkanal (Lattice-Boltzmann)</h2>
+          <p class="hint">Numerischer L&ouml;ser f&uuml;r die inkompressiblen Navier-Stokes-Gleichungen (D2Q9-BGK) im <strong>rotierenden Bezugssystem</strong> mit Zentrifugal- und Coriolis-K&ouml;rperkr&auml;ften. Eine Schaufelteilung wird auf einem periodischen Gitter gel&ouml;st, das Ergebnis dreifach in die <strong>echte Kreissektor-Geometrie</strong> zwischen D1 und D2 abgebildet. Str&ouml;mungsabriss (R&uuml;ckstr&ouml;mung) wird rot &uuml;berlagert. ~ 5 Sekunden Rechenzeit.</p>
           <div class="cfd-controls">
-            <button id="cfd-run" class="primary" type="button">CFD-Simulation starten</button>
+            <button id="cfd-run" class="primary" type="button">&#9654; Simulation starten</button>
             <label class="field" style="flex:1; min-width: 180px">
-              <span>Visualisierung</span>
+              <span>Anzeige</span>
               <select id="cfd-mode">
                 <option value="velocity">Geschwindigkeit |w|</option>
-                <option value="pressure">Druck (Δp)</option>
-                <option value="vorticity">Wirbelstaerke ω<sub>z</sub></option>
+                <option value="pressure">Druck (&Delta;p)</option>
+                <option value="vorticity">Wirbelst&auml;rke &omega;<sub>z</sub></option>
                 <option value="radial">Radialkomponente u<sub>r</sub></option>
               </select>
             </label>
@@ -223,16 +236,16 @@
           <canvas id="cfd-canvas" width="640" height="360" class="cfd-canvas"></canvas>
         </div>
         <div class="card">
-          <h2>2D-CFD-Simulation Spiralgehaeuse</h2>
-          <p class="hint">Separater Lattice-Boltzmann-Loeser im <strong>Absolut-Bezugssystem</strong> fuer die Stroemung durch das Volute (Spiralgehaeuse). Geometrie nach Stepanoff mit Zunge bei &phi;=0, logarithmisch erweitertem Aussenrand und Druckstutzen. Eintritt: Geschwindigkeitsrandbedingung auf der D2-Innenflaeche mit den Komponenten c<sub>m2</sub> (radial) und c<sub>u2</sub> (tangential) aus der Auslegung. Anzeige zwischen Geschwindigkeit, Druck und Wirbelstaerke umschaltbar.</p>
+          <h2>CFD Spiralgeh&auml;use (Lattice-Boltzmann)</h2>
+          <p class="hint">Separater L&ouml;ser im <strong>Absolut-Bezugssystem</strong> f&uuml;r die Str&ouml;mung durchs Spiralgeh&auml;use. Geometrie nach Stepanoff mit Zunge, spiralig erweitertem Au&szlig;enrand und Druckstutzen. Eintritt: c<sub>m2</sub> (radial) und c<sub>u2</sub> (tangential) aus der Auslegung auf der D2-Fl&auml;che. ~ 7 Sekunden Rechenzeit.</p>
           <div class="cfd-controls">
-            <button id="volute-run" class="primary" type="button">Volute-Simulation starten</button>
+            <button id="volute-run" class="primary" type="button">&#9654; Simulation starten</button>
             <label class="field" style="flex:1; min-width: 180px">
-              <span>Visualisierung</span>
+              <span>Anzeige</span>
               <select id="volute-mode">
                 <option value="velocity">Geschwindigkeit |c|</option>
-                <option value="pressure">Druck (Δp)</option>
-                <option value="vorticity">Wirbelstaerke ω<sub>z</sub></option>
+                <option value="pressure">Druck (&Delta;p)</option>
+                <option value="vorticity">Wirbelst&auml;rke &omega;<sub>z</sub></option>
               </select>
             </label>
           </div>
@@ -254,37 +267,34 @@
             Radseitenreibung nach Daily &amp; Nece, Spaltverlust am Saugauge.<br>
             <strong>Festigkeitsnachweis:</strong> rotierende Scheibe mit
             zentrischer Bohrung, Schaufel-Fliehkraftspannung, thermische
-            Ueberlagerung. Streckgrenze bei Betriebstemperatur, geforderter
+            &Uuml;berlagerung. Streckgrenze bei Betriebstemperatur, geforderter
             Sicherheitsfaktor SF &ge; 1.5 (FKM-Richtlinie / AD 2000 W 13).<br>
             <strong>Rotordynamik:</strong> Jeffcott-Modell (1D) sowie
             3-DOF-Mehrfreiheitsgrad-Modell (Translation, Pitching,
             Biegung). Erste 3 biegekritische Drehzahlen mit Modenformen,
             Campbell-Diagramm, Sicherheitsabstand &ge; 15 % nach API 673.<br>
-            <strong>Spiralgehaeuse:</strong> Stepanoff-Methode mit konstanter
+            <strong>Spiralgeh&auml;use:</strong> Stepanoff-Methode mit konstanter
             mittlerer Volutengeschwindigkeit, 8 Querschnitte alle 45&deg;.<br>
-            <strong>Spannungsprofil:</strong> &sigma;<sub>r</sub>(r) und
-            &sigma;<sub>&theta;</sub>(r) entlang Scheibenradius
-            (Timoshenko/Goodier, geschlossene Loesung) mit
-            Vergleichsspannung nach Gestaltaenderungsenergiehypothese.<br>
-            <strong>Off-Design-Kennfeld:</strong> Verlustmodell wird ueber
-            0.4..1.4 Q<sub>d</sub> ausgewertet, Identifikation von
-            Surge-Linie, Best-Efficiency-Point und Stall-Marge nach API 673.<br>
+            <strong>CFD:</strong> Lattice-Boltzmann (D2Q9-BGK), Schaufelkanal
+            im rotierenden Bezugssystem mit Zentrifugal- und Coriolis-Kraft
+            (Shan-Chen), Spiralgeh&auml;use im Absolutsystem.
+            Referenzen: Kr&uuml;ger et al., Succi, Mohamad.<br>
             <strong>Bauart:</strong> ein- und doppelflutig (SISW / DIDW);
-            doppelflutig teilt Q auf zwei Laufradhaelften auf.
+            doppelflutig teilt Q auf zwei Laufradh&auml;lften auf.
           </p>
           <p class="fineprint">
             Verifikation mit klassischen Mehrfreiheitsgrad-Verfahren
             (3-DOF-Rotormodell, geschlossene Scheibenspannung,
-            Mehrpunkt-1D-Verlustmodell). Eine 3D-CFD-Stroemungsanalyse
+            Mehrpunkt-1D-Verlustmodell, 2D-LBM-CFD). Eine 3D-CFD-Analyse
             (Fluent / OpenFOAM) und 3D-Solid-FEM (ANSYS Mechanical) der
-            Schaufelblattnachgiebigkeit, Schaufelfussspannung und
-            Eigenformen-Pruefung wird vor Fertigung weiterhin empfohlen.
+            Schaufelblattnachgiebigkeit, Schaufelfu&szlig;spannung und
+            Eigenformen wird vor Fertigung weiterhin empfohlen.
           </p>
         </div>
       </details>
 
       <button id="backToInputs" class="primary mobile-only" type="button">
-        &larr; Eingaben aendern
+        &larr; Eingaben &auml;ndern
       </button>
     </section>
   </main>
